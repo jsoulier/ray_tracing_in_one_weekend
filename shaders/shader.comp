@@ -4,8 +4,14 @@
 
 struct t_sphere
 {
-    vec3 position;
+    vec3 center;
     float radius;
+};
+
+struct t_ray
+{
+    vec3 origin;
+    vec3 direction;
 };
 
 layout(local_size_x = THREADS) in;
@@ -19,6 +25,44 @@ layout(set = 2, binding = 0) uniform t_num_spheres
     uint u_num_spheres;
 };
 
+const float aspect_ratio = WIDTH / HEIGHT;
+const vec2 image_size = vec2(WIDTH, HEIGHT);
+const vec2 viewport_size = image_size * VIEWPORT_SIZE;
+const vec3 camera_center = vec3(0.0f, 0.0f, 0.0f);
+const vec3 viewport_u = vec3(viewport_size.x, 0.0f, 0.0f);
+const vec3 viewport_v = vec3(0.0f, -viewport_size.y, 0.0f);
+const vec3 pixel_delta_u = viewport_u / image_size.x;
+const vec3 pixel_delta_v = viewport_v / image_size.y;
+const vec3 viewport_uv = camera_center - vec3(0.0f, 0.0f, FOCAL_LENGTH) - viewport_u / 2.0f - viewport_v / 2.0f;
+const vec3 pixel00 = viewport_uv + 0.5f * (pixel_delta_u + pixel_delta_v);
+
+bool test_sphere(
+    const in t_sphere sphere,
+    const in t_ray ray)
+{
+    vec3 offset = sphere.center - ray.origin;
+    const float a = dot(ray.direction, ray.direction);
+    const float b = -2.0f * dot(ray.direction, offset);
+    const float c = dot(offset, offset) - sphere.radius * sphere.radius;
+    const float discriminant = b * b - 4.0f * a * c;
+    return discriminant >= 0.0f;
+}
+
+vec3 ray_color(
+    const in t_ray ray)
+{
+    t_sphere sphere;
+    sphere.center = vec3(0.0f, 0.0f, -1.0f);
+    sphere.radius = 0.5f;
+    if (test_sphere(sphere, ray))
+    {
+        return vec3(1.0f, 0.0f, 0.0f);
+    }
+    const vec3 vector = normalize(ray.direction);
+    const float a = 0.5f * (vector.y + 1.0f);
+    return (1.0f - a) * vec3(1.0f, 1.0f, 1.0f) + a * vec3(0.5f, 0.7f, 1.0f);
+}
+
 void main()
 {
     const uvec2 size = imageSize(i_image);
@@ -27,7 +71,10 @@ void main()
     {
         return;
     }
-    const float red = float(id.x) / WIDTH;
-    const float green = float(id.y) / HEIGHT;
-    imageStore(i_image, ivec2(id.xy), vec4(red, green, 0.0f, 0.0f));
+    const vec3 pixel_center = pixel00 + id.x * pixel_delta_u + id.y * pixel_delta_v;
+    const vec3 ray_direction = pixel_center - camera_center;
+    t_ray ray;
+    ray.origin = camera_center;
+    ray.direction = ray_direction;
+    imageStore(i_image, ivec2(id.xy), vec4(ray_color(ray), 1.0f));
 }
