@@ -2,12 +2,75 @@
 #include <SDL3/SDL_main.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include "config.h"
 #include "helpers.h"
 
-static SDL_Window* window;
-static SDL_GPUDevice* device;
-static SDL_GPUComputePipeline* ray_pipeline;
+static SDL_GPUBuffer* create_spheres(
+    SDL_GPUDevice* device,
+    uint32_t* size)
+{
+    struct
+    {
+        float x;
+        float y;
+        float z;
+        float radius;
+    }
+    const spheres[] =
+    {{
+        .x = 0.0f,
+        .y = 0.0f,
+        .z = 0.0f,
+        .radius = 1.0f,
+    }};
+    SDL_GPUTransferBufferCreateInfo tbci = {0};
+    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    tbci.size = sizeof(spheres);
+    SDL_GPUBufferCreateInfo bci = {0};
+    bci.usage = SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_READ;
+    bci.size = sizeof(spheres);
+    SDL_GPUTransferBuffer* tbo = SDL_CreateGPUTransferBuffer(device, &tbci);
+    SDL_GPUBuffer* sbo = SDL_CreateGPUBuffer(device, &bci);
+    if (!tbo || !sbo)
+    {
+        SDL_Log("Failed to create buffer(s): %s", SDL_GetError());
+        return NULL;
+    }
+    void* data = SDL_MapGPUTransferBuffer(device, tbo, false);
+    if (!data)
+    {
+        SDL_Log("Failed to map transfer buffer: %s", SDL_GetError());
+        return NULL;
+    }
+    memcpy(data, spheres, sizeof(spheres));
+    SDL_UnmapGPUTransferBuffer(device, tbo);
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+    if (!commands)
+    {
+        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+        return NULL;
+    }
+    SDL_GPUCopyPass* pass = SDL_BeginGPUCopyPass(commands);
+    if (!pass)
+    {
+        SDL_Log("Failed to begin copy pass: %s", SDL_GetError());
+        return NULL;
+    }
+    SDL_GPUTransferBufferLocation src = {0};
+    SDL_GPUBufferRegion dst = {0};
+    src.transfer_buffer = tbo;
+    dst.buffer = sbo;
+    dst.size = sizeof(spheres);
+    SDL_UploadToGPUBuffer(pass, &src, &dst, false);
+    SDL_EndGPUCopyPass(pass);
+    SDL_SubmitGPUCommandBuffer(commands);
+    SDL_ReleaseGPUTransferBuffer(device, tbo);
+    *size = arrlen(spheres);
+    return sbo;
+}
 
 int main(
     int argc,
@@ -18,19 +81,109 @@ int main(
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
     if (!device)
     {
         SDL_Log("Failed to create device: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    ray_pipeline = load_compute_pipeline(device, "ray.comp");
-    if (!ray_pipeline)
+    SDL_GPUComputePipeline* pipeline = load_compute_pipeline(device, "shader.comp");
+    if (!pipeline)
     {
-        SDL_Log("Failed to load ray pipeline");
+        SDL_Log("Failed to load compute pipeline");
         return EXIT_FAILURE;
     }
-    SDL_ReleaseGPUComputePipeline(device, ray_pipeline);
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+    if (!commands)
+    {
+        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUTextureCreateInfo tci = {0};
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
+    tci.type = SDL_GPU_TEXTURETYPE_2D;
+    tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    tci.width = WIDTH;
+    tci.height = HEIGHT;
+    tci.num_levels = 1;
+    tci.layer_count_or_depth = 1;
+    SDL_GPUTexture* texture = SDL_CreateGPUTexture(device, &tci);
+    if (!texture)
+    {
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUStorageTextureReadWriteBinding stb = {0};
+    stb.texture = texture;
+    SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
+    if (!pass)
+    {
+        SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    uint32_t num_spheres;
+    SDL_GPUBuffer* spheres = create_spheres(device, &num_spheres);
+    if (!spheres)
+    {
+        SDL_Log("Failed to create spheres");
+        return EXIT_FAILURE;
+    }
+    SDL_BindGPUComputePipeline(pass, pipeline);
+    SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
+    SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
+    SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
+    SDL_EndGPUComputePass(pass);
+    SDL_GPUTransferBufferCreateInfo tbci = {0};
+    tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
+    tbci.size = WIDTH * HEIGHT * 4;
+    SDL_GPUTransferBuffer* results = SDL_CreateGPUTransferBuffer(device, &tbci);
+    if (!results)
+    {
+        SDL_Log("Failed to create transfer buffer: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);
+    if (!pass)
+    {
+        SDL_Log("Failed to begin copy pass: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUTextureRegion src = {0};
+    SDL_GPUTextureTransferInfo dst = {0};
+    src.texture = texture;
+    src.w = WIDTH;
+    src.h = HEIGHT;
+    src.d = 1;
+    dst.transfer_buffer = results;
+    SDL_DownloadFromGPUTexture(copy, &src, &dst);
+    SDL_EndGPUCopyPass(copy);
+    SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
+    if (!fence)
+    {
+        SDL_Log("Failed to acquire fence: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_WaitForGPUFences(device, true, &fence, 1);
+    SDL_ReleaseGPUFence(device, fence);
+    void* data = SDL_MapGPUTransferBuffer(device, results, false);
+    if (!data)
+    {
+        SDL_Log("Failed to map transfer buffer: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_Surface* surface = SDL_CreateSurfaceFrom(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA32, data, WIDTH * 4);
+    if (!surface)
+    {
+        SDL_Log("Failed to create surface: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_SaveBMP(surface, IMAGE);
+    SDL_DestroySurface(surface);
+    SDL_UnmapGPUTransferBuffer(device, results);
+    SDL_ReleaseGPUTransferBuffer(device, results);
+    SDL_ReleaseGPUTexture(device, texture);
+    SDL_ReleaseGPUBuffer(device, spheres);
+    SDL_ReleaseGPUComputePipeline(device, pipeline);
     SDL_DestroyGPUDevice(device);
     SDL_Quit();
     return EXIT_SUCCESS;
