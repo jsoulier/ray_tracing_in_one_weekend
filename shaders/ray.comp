@@ -1,0 +1,25 @@
+#version 450
+
+struct t_sphere
+{
+    vec3 position;
+    float radius;
+};
+
+layout(local_size_x = 256) in;
+layout(set = 0, binding = 0) readonly buffer t_spheres
+{
+    t_sphere b_spheres[];
+};
+layout(set = 1, binding = 0, rgba32f) writeonly uniform image2D i_image;
+
+void main()
+{
+    const uvec2 size = imageSize(i_image);
+    const uvec3 id = gl_GlobalInvocationID + gl_WorkGroupID * gl_WorkGroupSize;
+    if (id.x >= size.x || id.y >= size.y)
+    {
+        return;
+    }
+    imageStore(i_image, ivec2(id.xy), vec4(0.0f));
+}

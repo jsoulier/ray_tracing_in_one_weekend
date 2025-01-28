@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "debug",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bin/sdl3_ray_tracing.exe",
+            "cwd": "${workspaceFolder}/build/bin",
+            "preLaunchTask": "CMake: build"
+        },
+    ]
+}
