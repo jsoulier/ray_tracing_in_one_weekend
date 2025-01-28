@@ -27,7 +27,7 @@ function(spirv FILE)
         OUTPUT ${OUTPUT}
         COMMAND glslc ${SOURCE} -o ${OUTPUT} -I src
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        DEPENDS ${SOURCE}
+        DEPENDS ${SOURCE} src/config.h
         BYPRODUCTS ${OUTPUT}
         COMMENT ${SOURCE}
     )
@@ -35,7 +35,7 @@ function(spirv FILE)
     add_custom_target(${NAME} DEPENDS ${OUTPUT})
     add_dependencies(sdl3_ray_tracing ${NAME})
 endfunction()
-spirv(ray.comp)
+spirv(shader.comp)
 
 configure_file(LICENSE.txt ${BINARY_DIR} COPYONLY)
 configure_file(README.md ${BINARY_DIR} COPYONLY)

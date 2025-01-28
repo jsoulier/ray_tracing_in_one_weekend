@@ -8,6 +8,7 @@
 #undef assert
 #undef max
 #undef min
+#undef arrlen
 
 #define EPSILON 0.000001f
 #define PI 3.14159265359f
@@ -18,6 +19,7 @@
 #define rad(deg) ((deg) * PI / 180.0f)
 #define abs(x) ((x) > 0 ? (x) : -(x))
 #define lerp(a, b, t) ((a) + ((b) - (a)) * (t))
+#define arrlen(x) (sizeof(x) / sizeof(x[0]))
 
 #ifndef NDEBUG
 #define assert(e) SDL_assert(e)
