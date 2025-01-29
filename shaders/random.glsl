@@ -43,3 +43,9 @@ float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
 float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
 float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+
+// Added by jsoulier
+float random( float x, float a, float b ) { return a + (b - a) * random(x); }
+float random( vec2  v, float a, float b ) { return a + (b - a) * random(v); }
+float random( vec3  v, float a, float b ) { return a + (b - a) * random(v); }
+float random( vec4  v, float a, float b ) { return a + (b - a) * random(v); }

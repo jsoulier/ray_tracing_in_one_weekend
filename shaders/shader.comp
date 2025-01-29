@@ -6,6 +6,7 @@
 const float infinity = 3.402823466e+38;
 const float pi = 3.1415926535897932385;
 const float phi = 1.61803398874989484820459;
+const float epsilon = 0.00000001f;
 
 struct t_sphere
 {
@@ -49,16 +50,55 @@ const vec3 viewport_uv = camera_center - vec3(0.0f, 0.0f, FOCAL_LENGTH) - viewpo
 const vec3 pixel00 = viewport_uv + 0.5f * (pixel_delta_u + pixel_delta_v);
 
 void get_ray(
-    const uvec2 id,
-    const uint i,
+    const in uvec2 id,
+    const in uint i,
     out t_ray ray)
 {
     vec2 offset;
     offset.x = random(vec4(id.x, id.y, i, 0.0f)) - 0.5f;
-    offset.y = random(vec4(id.x, id.y, i, 0.0f)) - 0.5f;
-    vec3 pixel_sample = pixel00 + ((id.x + offset.x) * pixel_delta_u) + ((id.y + offset.y) * pixel_delta_v);
+    offset.y = random(vec4(id.x, id.y, i, 1.0f)) - 0.5f;
+    vec3 pixel_sample = pixel00 + ((float(id.x) + offset.x) * pixel_delta_u) + ((float(id.y) + offset.y) * pixel_delta_v);
     ray.origin = vec3(0.0f, 0.0f, 0.0f);
     ray.direction = pixel_sample - ray.origin;
+    // ray.direction = vec3(0.0f);
+    // ray.direction.x = random(vec4(id.x, id.y, i, 0.0f)) * 0.5 + 0.5;
+    // ray.direction.y = random(vec4(id.x, id.y, i, 1.0f)) * 0.5 + 0.5;
+}
+
+vec3 random_unit_vector(
+    const in uvec2 id,
+    const in uint bounce,
+    const in uint s)
+{
+    for (uint i = 0;; i++)
+    {
+        vec3 vector;
+        vector.x = random(vec4(id.x, id.y, i + bounce * DEPTH, 13 * (s + 1)), -1.0f, 1.0f);
+        vector.y = random(vec4(-float(id.x), id.y, i + bounce * DEPTH, 79 * (s + 1)), -1.0f, 1.0f);
+        vector.z = random(vec4(id.x, -float(id.y), i + bounce * DEPTH, 133 * (s + 1)), -1.0f, 1.0f);
+        const float scalar = dot(vector, vector);
+        if (epsilon < scalar && scalar <= 1.0f)
+        {
+            return vector / sqrt(scalar);
+        }
+    }
+}
+
+vec3 random_on_hemisphere(
+    const in uvec2 id,
+    const in vec3 normal,
+    const in uint bounce,
+    const in uint s)
+{
+    vec3 on_unit_sphere = random_unit_vector(id, bounce, s);
+    if (dot(on_unit_sphere, normal) > 0.0)
+    {
+        return on_unit_sphere;
+    }
+    else
+    {
+        return -on_unit_sphere;
+    }
 }
 
 bool test_sphere(
@@ -116,16 +156,31 @@ bool test(
 }
 
 vec3 ray_color(
-    const in t_ray ray)
+    const in uvec2 id,
+    const in t_ray initial_ray,
+    const in uint s)
 {
-    t_hit_record record;
-    if (test(ray, 0.0f, infinity, record))
+    float attenuation = 0.5f;
+    t_ray ray = initial_ray;
+    for (int depth = 0; depth < 50; depth++)
     {
-        return 0.5f * (record.normal + vec3(1.0f, 1.0f, 1.0f));
+        t_hit_record record;
+        if (test(ray, 0.001f, infinity, record))
+        {
+            vec3 dir = random_on_hemisphere(id, record.normal, depth, s);
+            ray = t_ray(record.position, dir);
+            attenuation *= 0.5f;
+            continue;
+        }
+        else
+        {
+            const vec3 vector = normalize(ray.direction);
+            const float a = 0.5f * (vector.y + 1.0f);
+            vec3 background = (1.0f - a) * vec3(1.0f, 1.0f, 1.0f) + a * vec3(0.5f, 0.7f, 1.0f);
+            return (attenuation * 2.0f) * background;
+        }
     }
-    const vec3 vector = normalize(ray.direction);
-    const float a = 0.5f * (vector.y + 1.0f);
-    return (1.0f - a) * vec3(1.0f, 1.0f, 1.0f) + a * vec3(0.5f, 0.7f, 1.0f);
+    return vec3(0.0f);
 }
 
 void main()
@@ -139,11 +194,14 @@ void main()
     const vec3 pixel_center = pixel00 + id.x * pixel_delta_u + id.y * pixel_delta_v;
     const vec3 ray_direction = pixel_center - camera_center;
     vec3 color = vec3(0.0f);
+    // t_ray ray;
+    // get_ray(id, 1, ray);
+    // imageStore(i_image, ivec2(id.xy), vec4(ray.direction, 1.0f));
     for (uint i = 0; i < SAMPLES; i++)
     {
         t_ray ray;
         get_ray(id, i, ray);
-        color += ray_color(ray);
+        color += ray_color(id, ray, i);
     }
     imageStore(i_image, ivec2(id.xy), vec4(color / SAMPLES, 1.0f));
 }

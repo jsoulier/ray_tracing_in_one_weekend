@@ -126,6 +126,12 @@ int main(
         SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+#if DEBUG
+    SDL_Window* window = SDL_CreateWindow("", 100, 100, SDL_WINDOW_HIDDEN);
+    SDL_ClaimWindowForGPUDevice(device, window);
+    SDL_GPUTexture* swapchain;
+    SDL_AcquireGPUSwapchainTexture(commands, window, &swapchain, NULL, NULL);
+#endif
     SDL_GPUTextureCreateInfo tci = {0};
     tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -211,7 +217,12 @@ int main(
     SDL_ReleaseGPUTexture(device, texture);
     SDL_ReleaseGPUBuffer(device, spheres);
     SDL_ReleaseGPUComputePipeline(device, pipeline);
+#if DEBUG
+    SDL_ReleaseWindowFromGPUDevice(device, window);
+    SDL_DestroyWindow(window);
+#endif
     SDL_DestroyGPUDevice(device);
+    // SDL_OpenURL("image.bmp");
     SDL_Quit();
     return EXIT_SUCCESS;
 }
