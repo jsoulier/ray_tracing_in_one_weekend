@@ -11,14 +11,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
 make_directory(${BINARY_DIR})
 
 add_subdirectory(lib/SDL)
-add_executable(sdl3_ray_tracing WIN32
-    lib/SPIRV-Reflect/spirv_reflect.c
-    src/helpers.c
-    src/main.c
-)
-target_link_libraries(sdl3_ray_tracing PUBLIC SDL3::SDL3)
-target_include_directories(sdl3_ray_tracing PUBLIC lib/SPIRV-Reflect)
+add_executable(sdl3_ray_tracing WIN32 src/main.c)
 set_target_properties(sdl3_ray_tracing PROPERTIES C_STANDARD 11)
+target_link_libraries(sdl3_ray_tracing PUBLIC SDL3::SDL3)
 
 function(spirv FILE)
     set(SOURCE shaders/${FILE})
