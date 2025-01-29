@@ -1,9 +1,11 @@
 #version 450
 
 #include "config.h"
+#include "random.glsl"
 
 const float infinity = 3.402823466e+38;
 const float pi = 3.1415926535897932385;
+const float phi = 1.61803398874989484820459;
 
 struct t_sphere
 {
@@ -46,6 +48,19 @@ const vec3 pixel_delta_v = viewport_v / image_size.y;
 const vec3 viewport_uv = camera_center - vec3(0.0f, 0.0f, FOCAL_LENGTH) - viewport_u / 2.0f - viewport_v / 2.0f;
 const vec3 pixel00 = viewport_uv + 0.5f * (pixel_delta_u + pixel_delta_v);
 
+void get_ray(
+    const uvec2 id,
+    const uint i,
+    out t_ray ray)
+{
+    vec2 offset;
+    offset.x = random(vec4(id.x, id.y, i, 0.0f)) - 0.5f;
+    offset.y = random(vec4(id.x, id.y, i, 0.0f)) - 0.5f;
+    vec3 pixel_sample = pixel00 + ((id.x + offset.x) * pixel_delta_u) + ((id.y + offset.y) * pixel_delta_v);
+    ray.origin = vec3(0.0f, 0.0f, 0.0f);
+    ray.direction = pixel_sample - ray.origin;
+}
+
 bool test_sphere(
     const in t_sphere sphere,
     const in t_ray ray,
@@ -87,16 +102,14 @@ bool test(
     const float ray_max,
     out t_hit_record record)
 {
-    t_hit_record temp_rec; // not needed
     bool hit = false;
     float closest = ray_max;
     for (uint i = 0; i < u_num_spheres; i++)
     {
-        if (test_sphere(b_spheres[i], ray, ray_min, closest, temp_rec))
+        if (test_sphere(b_spheres[i], ray, ray_min, closest, record))
         {
             hit = true;
-            closest = temp_rec.root;
-            record = temp_rec;
+            closest = record.root;
         }
     }
     return hit;
@@ -125,8 +138,12 @@ void main()
     }
     const vec3 pixel_center = pixel00 + id.x * pixel_delta_u + id.y * pixel_delta_v;
     const vec3 ray_direction = pixel_center - camera_center;
-    t_ray ray;
-    ray.origin = camera_center;
-    ray.direction = ray_direction;
-    imageStore(i_image, ivec2(id.xy), vec4(ray_color(ray), 1.0f));
+    vec3 color = vec3(0.0f);
+    for (uint i = 0; i < SAMPLES; i++)
+    {
+        t_ray ray;
+        get_ray(id, i, ray);
+        color += ray_color(ray);
+    }
+    imageStore(i_image, ivec2(id.xy), vec4(color / SAMPLES, 1.0f));
 }
