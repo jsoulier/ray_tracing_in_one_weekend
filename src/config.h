@@ -10,4 +10,7 @@
 #define FOCAL_LENGTH 1.0f
 #define IMAGE "image.bmp"
 
+#define LAMBERTIAN 0
+#define METAL 1
+
 #endif

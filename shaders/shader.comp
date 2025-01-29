@@ -18,12 +18,16 @@ struct t_hit
     float root;
     vec3 position;
     vec3 normal;
+    vec3 albedo;
+    uint scatter;
 };
 
 struct t_sphere
 {
     vec3 center;
     float radius;
+    vec3 albedo;
+    uint scatter;
 };
 
 layout(local_size_x = THREADS) in;
@@ -80,37 +84,51 @@ bool hit_sphere(
     {
         hit.normal = -hit.normal;
     }
+    hit.albedo = sphere.albedo;
+    hit.scatter = sphere.scatter;
     return true;
 }
 
 vec3 get_bounce(
+    const in t_ray ray,
+    const in t_hit hit,
     const in uvec2 id,
     in uint iteration,
-    const in uint depth,
-    const in vec3 normal)
+    const in uint depth)
 {
     iteration += 1;
     for (uint i = 0;; i++)
     {
-        const float z = i + depth * DEPTH;
-        vec3 vector;
-        vector.x = random(vec4(id.x, id.y, z, iteration * 17), -1.0f, 1.0f);
-        vector.y = random(vec4(id.x, id.y, z, iteration * 73), -1.0f, 1.0f);
-        vector.z = random(vec4(id.x, id.y, z, iteration * 99), -1.0f, 1.0f);
-        const float scalar = dot(vector, vector);
-        if (epsilon < scalar && scalar <= 1.0f)
+        switch (hit.scatter)
         {
-            vector /= sqrt(scalar);
-            if (dot(vector, normal) > 0.0)
+        case LAMBERTIAN:
             {
-                return vector;
+                const float z = depth * DEPTH + i;
+                vec3 vector;
+                vector.x = random(vec4(id.x, id.y, z, iteration * 17), -1.0f, 1.0f);
+                vector.y = random(vec4(id.x, id.y, z, iteration * 73), -1.0f, 1.0f);
+                vector.z = random(vec4(id.x, id.y, z, iteration * 99), -1.0f, 1.0f);
+                const float scalar = dot(vector, vector);
+                if (scalar > epsilon && scalar <= 1.0f)
+                {
+                    vector /- sqrt(scalar);
+                    vector += hit.normal;
+                    if (dot(vector, vector) < epsilon)
+                    {
+                        vector = hit.normal;
+                    }
+                    return vector;
+                }
+                break;
             }
-            else
+        case METAL:
             {
-                return -vector;
+                return reflect(ray.direction, hit.normal);
             }
+            break;
         }
     }
+    return vec3(0.0f);
 }
 
 vec3 get_colour(
@@ -118,8 +136,8 @@ vec3 get_colour(
     const in uint iteration,
     in t_ray ray)
 {
-    float attenuation = 0.5f;
-    for (uint depth = 0; depth < 50; depth++)
+    vec3 attenuation = vec3(1.0f);
+    for (uint depth = 0; depth < DEPTH; depth++)
     {
         bool status = false;
         t_hit hit;
@@ -135,18 +153,18 @@ vec3 get_colour(
         }
         if (status)
         {
-            vec3 dir = get_bounce(id, iteration, depth, hit.normal);
-            ray = t_ray(hit.position, dir);
-            attenuation *= 0.5f;
+            const vec3 bounce = get_bounce(ray, hit, id, iteration, depth);
+            ray = t_ray(hit.position, bounce);
+            attenuation *= hit.albedo;
             continue;
         }
         const float a = 0.5f * (normalize(ray.direction).y + 1.0f);
         const vec3 sky = vec3(0.5f, 0.7f, 1.0f);
         const vec3 horizon = vec3(1.0f, 1.0f, 1.0f);
         const vec3 colour = (1.0f - a) * horizon + a * sky;
-        return attenuation * 2.0f * colour;
+        return colour * attenuation;
     }
-    return vec3(0.0f);
+    return attenuation;
 }
 
 void main()
@@ -169,5 +187,5 @@ void main()
         ray.direction = target - ray.origin;
         colour += get_colour(id, iteration, ray);
     }
-    imageStore(i_image, ivec2(id.xy), vec4(colour / SAMPLES, 1.0f));
+    imageStore(i_image, ivec2(id.xy), vec4(sqrt(colour / SAMPLES), 1.0f));
 }
