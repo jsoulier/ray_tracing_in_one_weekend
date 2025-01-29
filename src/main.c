@@ -17,19 +17,57 @@ static SDL_GPUBuffer* create_spheres(
         float y;
         float z;
         float radius;
+        float r;
+        float g;
+        float b;
+        uint32_t scatter;
+        float fuzz;
+        uint32_t padding1;
+        uint32_t padding2;
+        uint32_t padding3;
     }
     const spheres[] =
     {{
         .x = 0.0f,
-        .y = 0.0f,
-        .z = -1.0f,
-        .radius = 0.5f,
-    },
-    {
-        .x = 0.0f,
         .y = -100.5f,
         .z = -1.0f,
         .radius = 100.0f,
+        .r = 0.8f,
+        .g = 0.8f,
+        .b = 0.0f,
+        .scatter = LAMBERTIAN,
+    },
+    {
+        .x = 0.0f,
+        .y = 0.0f,
+        .z = -1.2f,
+        .radius = 0.5f,
+        .r = 0.1f,
+        .g = 0.2f,
+        .b = 0.5f,
+        .scatter = LAMBERTIAN,
+    },
+    {
+        .x = -1.0f,
+        .y = 0.0f,
+        .z = -1.0f,
+        .radius = 0.5f,
+        .r = 0.8f,
+        .g = 0.8f,
+        .b = 0.8f,
+        .scatter = METAL,
+        .fuzz = 0.3f,
+    },
+    {
+        .x = 1.0f,
+        .y = 0.0f,
+        .z = -1.0f,
+        .radius = 0.5f,
+        .r = 0.8f,
+        .g = 0.6f,
+        .b = 0.2f,
+        .scatter = METAL,
+        .fuzz = 1.0f,
     }};
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
@@ -126,12 +164,6 @@ int main(
         SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-#if DEBUG
-    SDL_Window* window = SDL_CreateWindow("", 100, 100, SDL_WINDOW_HIDDEN);
-    SDL_ClaimWindowForGPUDevice(device, window);
-    SDL_GPUTexture* swapchain;
-    SDL_AcquireGPUSwapchainTexture(commands, window, &swapchain, NULL, NULL);
-#endif
     SDL_GPUTextureCreateInfo tci = {0};
     tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -217,12 +249,8 @@ int main(
     SDL_ReleaseGPUTexture(device, texture);
     SDL_ReleaseGPUBuffer(device, spheres);
     SDL_ReleaseGPUComputePipeline(device, pipeline);
-#if DEBUG
-    SDL_ReleaseWindowFromGPUDevice(device, window);
-    SDL_DestroyWindow(window);
-#endif
     SDL_DestroyGPUDevice(device);
-    // SDL_OpenURL("image.bmp");
+    SDL_OpenURL("image.bmp");
     SDL_Quit();
     return EXIT_SUCCESS;
 }

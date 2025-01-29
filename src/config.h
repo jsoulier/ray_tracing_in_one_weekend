@@ -9,6 +9,8 @@
 #define VIEWPORT_SIZE 0.01f
 #define FOCAL_LENGTH 1.0f
 #define IMAGE "image.bmp"
-#define DEBUG 1
+
+#define LAMBERTIAN 0
+#define METAL 1
 
 #endif
