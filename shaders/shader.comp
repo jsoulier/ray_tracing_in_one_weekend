@@ -36,16 +36,23 @@ const vec3 pixel_delta_v = viewport_v / image_size.y;
 const vec3 viewport_uv = camera_center - vec3(0.0f, 0.0f, FOCAL_LENGTH) - viewport_u / 2.0f - viewport_v / 2.0f;
 const vec3 pixel00 = viewport_uv + 0.5f * (pixel_delta_u + pixel_delta_v);
 
-bool test_sphere(
+float test_sphere(
     const in t_sphere sphere,
     const in t_ray ray)
 {
-    vec3 offset = sphere.center - ray.origin;
+    const vec3 offset = sphere.center - ray.origin;
     const float a = dot(ray.direction, ray.direction);
-    const float b = -2.0f * dot(ray.direction, offset);
-    const float c = dot(offset, offset) - sphere.radius * sphere.radius;
-    const float discriminant = b * b - 4.0f * a * c;
-    return discriminant >= 0.0f;
+    const float b = dot(ray.direction, offset);
+    const float c = dot(offset, offset) - pow(sphere.radius, 2);
+    const float discriminant = b * b - a * c;
+    if (discriminant < 0)
+    {
+        return -1.0f;
+    }
+    else
+    {
+        return (b - sqrt(discriminant)) / a;
+    }
 }
 
 vec3 ray_color(
@@ -54,9 +61,11 @@ vec3 ray_color(
     t_sphere sphere;
     sphere.center = vec3(0.0f, 0.0f, -1.0f);
     sphere.radius = 0.5f;
-    if (test_sphere(sphere, ray))
+    const float t = test_sphere(sphere, ray);
+    if (t > 0.0f)
     {
-        return vec3(1.0f, 0.0f, 0.0f);
+        vec3 n = normalize(ray.origin + ray.direction * t - vec3(0, 0, -1));
+        return 0.5 * vec3(n.x + 1, n.y + 1, n.z + 1);
     }
     const vec3 vector = normalize(ray.direction);
     const float a = 0.5f * (vector.y + 1.0f);

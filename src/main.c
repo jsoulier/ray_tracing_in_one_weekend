@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "config.h"
-#include "helpers.h"
 
 static SDL_GPUBuffer* create_spheres(
     SDL_GPUDevice* device,
@@ -68,7 +67,7 @@ static SDL_GPUBuffer* create_spheres(
     SDL_EndGPUCopyPass(pass);
     SDL_SubmitGPUCommandBuffer(commands);
     SDL_ReleaseGPUTransferBuffer(device, tbo);
-    *size = arrlen(spheres);
+    *size = sizeof(spheres) / sizeof(spheres[0]);
     return sbo;
 }
 
@@ -87,12 +86,34 @@ int main(
         SDL_Log("Failed to create device: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUComputePipeline* pipeline = load_compute_pipeline(device, "shader.comp");
+    size_t size;
+    void* code = SDL_LoadFile("shader.comp", &size);
+    if (!code)
+    {
+        SDL_Log("Failed to load compute pipeline:  %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUComputePipelineCreateInfo gpci = {0};
+    gpci.code = code;
+    gpci.code_size = size;
+    gpci.threadcount_x = THREADS;
+    gpci.threadcount_y = 1;
+    gpci.threadcount_z = 1;
+    gpci.num_uniform_buffers = 1;
+    gpci.num_samplers = 0;
+    gpci.num_readwrite_storage_buffers = 0;
+    gpci.num_readonly_storage_buffers = 1;
+    gpci.num_readwrite_storage_textures = 1;
+    gpci.num_readonly_storage_textures = 0;
+    gpci.format = SDL_GPU_SHADERFORMAT_SPIRV;
+    gpci.entrypoint = "main";
+    SDL_GPUComputePipeline* pipeline = SDL_CreateGPUComputePipeline(device, &gpci);
     if (!pipeline)
     {
         SDL_Log("Failed to load compute pipeline");
         return EXIT_FAILURE;
     }
+    SDL_free(code);
     SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
     if (!commands)
     {
