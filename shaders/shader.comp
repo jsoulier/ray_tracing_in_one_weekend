@@ -51,14 +51,20 @@ layout(set = 2, binding = 0) uniform t_num_spheres
 };
 
 const vec2 image_size = vec2(WIDTH, HEIGHT);
-const vec2 viewport_size = image_size * VIEWPORT_SIZE;
-const vec3 focal_length = vec3(0.0f, 0.0f, FOCAL_LENGTH);
-const vec3 camera_center = vec3(0.0f, 0.0f, 0.0f);
-const vec3 viewport_u = vec3(viewport_size.x, 0.0f, 0.0f);
-const vec3 viewport_v = vec3(0.0f, -viewport_size.y, 0.0f);
+const float aspect_ratio = image_size.x / image_size.y;
+const float focal_length = length(SOURCE - TARGET);
+const float viewport_h = 2.0f * tan(FOV / 2.0f * pi / 180.0f) * focal_length;
+const float viewport_w = viewport_h * aspect_ratio;
+const vec2 viewport_size = vec2(viewport_w, viewport_h);
+const vec3 camera_center = SOURCE;
+const vec3 vector_w = normalize(SOURCE - TARGET);
+const vec3 vector_u = normalize(cross(UP, vector_w));
+const vec3 vector_v = cross(vector_w, vector_u);
+const vec3 viewport_u = viewport_size.x * vector_u;
+const vec3 viewport_v = viewport_size.y * -vector_v;
 const vec3 pixel_u = viewport_u / image_size.x;
 const vec3 pixel_v = viewport_v / image_size.y;
-const vec3 viewport_uv = camera_center - focal_length - (viewport_u + viewport_v) / 2.0f;
+const vec3 viewport_uv = camera_center - focal_length * vector_w - (viewport_u + viewport_v) / 2.0f;
 const vec3 pixel_00 = viewport_uv + 0.5f * (pixel_u + pixel_v);
 
 bool hit_sphere(
@@ -245,7 +251,7 @@ void main()
         offset.y = random(vec4(id.x, id.y, iteration, 1.0f)) - 0.5f;
         const vec3 target = pixel_00 + ((id.x + offset.x) * pixel_u) + ((id.y + offset.y) * pixel_v);
         t_ray ray;
-        ray.origin = vec3(0.0f, 0.0f, 0.0f);
+        ray.origin = SOURCE;
         ray.direction = target - ray.origin;
         colour += get_colour(id, iteration, ray);
     }
