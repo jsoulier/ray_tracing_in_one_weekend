@@ -22,7 +22,7 @@ static SDL_GPUBuffer* create_spheres(
         float b;
         uint32_t scatter;
         float fuzz;
-        uint32_t padding1;
+        float refraction;
         uint32_t padding2;
         uint32_t padding3;
     }
@@ -52,11 +52,8 @@ static SDL_GPUBuffer* create_spheres(
         .y = 0.0f,
         .z = -1.0f,
         .radius = 0.5f,
-        .r = 0.8f,
-        .g = 0.8f,
-        .b = 0.8f,
-        .scatter = METAL,
-        .fuzz = 0.3f,
+        .scatter = DIAELECTRIC,
+        .refraction = 1.5f,
     },
     {
         .x = 1.0f,
@@ -68,6 +65,14 @@ static SDL_GPUBuffer* create_spheres(
         .b = 0.2f,
         .scatter = METAL,
         .fuzz = 1.0f,
+    },
+    {
+        .x = -1.0f,
+        .y = 0.0f,
+        .z = -1.0f,
+        .radius = 0.4f,
+        .scatter = DIAELECTRIC,
+        .refraction = 1.0f / 1.5f,
     }};
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;

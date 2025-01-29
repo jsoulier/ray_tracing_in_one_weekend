@@ -18,7 +18,7 @@ struct t_material
     vec3 albedo;
     uint scatter;
     float fuzz;
-    uint padding1;
+    float refraction;
     uint padding2;
     uint padding3;
 };
@@ -28,6 +28,7 @@ struct t_hit
     float root;
     vec3 position;
     vec3 normal;
+    bool front;
     t_material material;
 };
 
@@ -88,7 +89,8 @@ bool hit_sphere(
     hit.root = root;
     hit.position = ray.origin + ray.direction * root;
     hit.normal = (hit.position - sphere.center) / sphere.radius;
-    if (dot(ray.direction, hit.normal) >= 0)
+    hit.front = dot(ray.direction, hit.normal) < 0;
+    if (!hit.front)
     {
         hit.normal = -hit.normal;
     }
@@ -117,7 +119,8 @@ bool get_bounce(
     const in uvec2 id,
     in uint iteration,
     const in uint depth,
-    out vec3 bounce)
+    out vec3 bounce,
+    out vec3 colour)
 {
     iteration += 1;
     for (uint i = 0;; i++)
@@ -138,6 +141,7 @@ bool get_bounce(
                     }
                     bounce;
                 }
+                colour = hit.material.albedo;
                 return true;
             }
             break;
@@ -145,7 +149,38 @@ bool get_bounce(
             {
                 bounce = normalize(reflect(ray.direction, hit.normal));
                 bounce += get_random(id, iteration, depth, i) * hit.material.fuzz;
+                colour = hit.material.albedo;
                 return dot(bounce, hit.normal) > 0;
+            }
+            break;
+        case DIAELECTRIC:
+            {
+                float ri;
+                if (hit.front)
+                {
+                    ri = 1.0f / hit.material.refraction;
+                }
+                else
+                {
+                    ri = hit.material.refraction;
+                }
+                vec3 dir = normalize(ray.direction);
+                float cos_theta = min(dot(-dir, hit.normal), 1.0f);
+                float sin_theta = sqrt(1.0f - pow(cos_theta, 2));
+                bool cannot_refract = ri * sin_theta > 1.0f;
+                float r0 = (1.0f - hit.material.refraction) / (1.0f + hit.material.refraction);
+                r0 = pow(r0, 2);
+                const float reflectance = r0 + (1.0f - r0) * pow(1.0f - cos_theta, 5);
+                if (cannot_refract || reflectance > random(vec2(id.x * WIDTH + depth, id.y * HEIGHT + iteration)))
+                {
+                    bounce = reflect(dir, hit.normal);
+                }
+                else
+                {
+                    bounce = refract(dir, hit.normal, ri);
+                }
+                colour = vec3(1.0f);
+                return true;
             }
             break;
         }
@@ -177,11 +212,7 @@ vec3 get_colour(
         {
             vec3 bounce;
             vec3 colour;
-            if (get_bounce(ray, hit, id, iteration, depth, bounce))
-            {
-                colour = hit.material.albedo;
-            }
-            else
+            if (!get_bounce(ray, hit, id, iteration, depth, bounce, colour))
             {
                 colour = vec3(0.0f);
             }

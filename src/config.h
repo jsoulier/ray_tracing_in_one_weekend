@@ -12,5 +12,9 @@
 
 #define LAMBERTIAN 0
 #define METAL 1
+#define DIAELECTRIC 2
+
+#define IOR_AIR 1.0f
+#define IOR_WATER 1.33f
 
 #endif
