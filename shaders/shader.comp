@@ -13,21 +13,29 @@ struct t_ray
     vec3 direction;
 };
 
+struct t_material
+{
+    vec3 albedo;
+    uint scatter;
+    float fuzz;
+    uint padding1;
+    uint padding2;
+    uint padding3;
+};
+
 struct t_hit
 {
     float root;
     vec3 position;
     vec3 normal;
-    vec3 albedo;
-    uint scatter;
+    t_material material;
 };
 
 struct t_sphere
 {
     vec3 center;
     float radius;
-    vec3 albedo;
-    uint scatter;
+    t_material material;
 };
 
 layout(local_size_x = THREADS) in;
@@ -84,51 +92,65 @@ bool hit_sphere(
     {
         hit.normal = -hit.normal;
     }
-    hit.albedo = sphere.albedo;
-    hit.scatter = sphere.scatter;
+    hit.material = sphere.material;
     return true;
 }
 
-vec3 get_bounce(
+vec3 get_random(
+    const in uvec2 id,
+    const in uint iteration,
+    const in uint depth,
+    const in uint i)
+{
+    const float j = iteration + 1;
+    const float z = depth * DEPTH + i;
+    vec3 vector;
+    vector.x = random(vec4(id.x, id.y, z, j * 17.0f), -1.0f, 1.0f);
+    vector.y = random(vec4(id.x, id.y, z, j * 73.0f), -1.0f, 1.0f);
+    vector.z = random(vec4(id.x, id.y, z, j * 99.0f), -1.0f, 1.0f);
+    return vector;
+}
+
+bool get_bounce(
     const in t_ray ray,
     const in t_hit hit,
     const in uvec2 id,
     in uint iteration,
-    const in uint depth)
+    const in uint depth,
+    out vec3 bounce)
 {
     iteration += 1;
     for (uint i = 0;; i++)
     {
-        switch (hit.scatter)
+        switch (hit.material.scatter)
         {
         case LAMBERTIAN:
             {
-                const float z = depth * DEPTH + i;
-                vec3 vector;
-                vector.x = random(vec4(id.x, id.y, z, iteration * 17), -1.0f, 1.0f);
-                vector.y = random(vec4(id.x, id.y, z, iteration * 73), -1.0f, 1.0f);
-                vector.z = random(vec4(id.x, id.y, z, iteration * 99), -1.0f, 1.0f);
-                const float scalar = dot(vector, vector);
+                const float scalar = dot(bounce, bounce);
+                bounce = get_random(id, iteration, depth, i);
                 if (scalar > epsilon && scalar <= 1.0f)
                 {
-                    vector /- sqrt(scalar);
-                    vector += hit.normal;
-                    if (dot(vector, vector) < epsilon)
+                    bounce /- sqrt(scalar);
+                    bounce += hit.normal;
+                    if (dot(bounce, bounce) < epsilon)
                     {
-                        vector = hit.normal;
+                        bounce = hit.normal;
                     }
-                    return vector;
+                    bounce;
                 }
-                break;
+                return true;
             }
+            break;
         case METAL:
             {
-                return reflect(ray.direction, hit.normal);
+                bounce = normalize(reflect(ray.direction, hit.normal));
+                bounce += get_random(id, iteration, depth, i) * hit.material.fuzz;
+                return dot(bounce, hit.normal) > 0;
             }
             break;
         }
     }
-    return vec3(0.0f);
+    return false;
 }
 
 vec3 get_colour(
@@ -153,9 +175,18 @@ vec3 get_colour(
         }
         if (status)
         {
-            const vec3 bounce = get_bounce(ray, hit, id, iteration, depth);
+            vec3 bounce;
+            vec3 colour;
+            if (get_bounce(ray, hit, id, iteration, depth, bounce))
+            {
+                colour = hit.material.albedo;
+            }
+            else
+            {
+                colour = vec3(0.0f);
+            }
             ray = t_ray(hit.position, bounce);
-            attenuation *= hit.albedo;
+            attenuation *= colour;
             continue;
         }
         const float a = 0.5f * (normalize(ray.direction).y + 1.0f);

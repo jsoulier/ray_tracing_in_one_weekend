@@ -21,7 +21,10 @@ static SDL_GPUBuffer* create_spheres(
         float g;
         float b;
         uint32_t scatter;
-        // uint32_t fuzz;
+        float fuzz;
+        uint32_t padding1;
+        uint32_t padding2;
+        uint32_t padding3;
     }
     const spheres[] =
     {{
@@ -53,6 +56,7 @@ static SDL_GPUBuffer* create_spheres(
         .g = 0.8f,
         .b = 0.8f,
         .scatter = METAL,
+        .fuzz = 0.3f,
     },
     {
         .x = 1.0f,
@@ -63,6 +67,7 @@ static SDL_GPUBuffer* create_spheres(
         .g = 0.6f,
         .b = 0.2f,
         .scatter = METAL,
+        .fuzz = 1.0f,
     }};
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
