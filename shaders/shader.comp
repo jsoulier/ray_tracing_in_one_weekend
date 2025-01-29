@@ -2,6 +2,9 @@
 
 #include "config.h"
 
+const float infinity = 3.402823466e+38;
+const float pi = 3.1415926535897932385;
+
 struct t_sphere
 {
     vec3 center;
@@ -12,6 +15,13 @@ struct t_ray
 {
     vec3 origin;
     vec3 direction;
+};
+
+struct t_hit_record
+{
+    float root;
+    vec3 position;
+    vec3 normal;
 };
 
 layout(local_size_x = THREADS) in;
@@ -36,9 +46,12 @@ const vec3 pixel_delta_v = viewport_v / image_size.y;
 const vec3 viewport_uv = camera_center - vec3(0.0f, 0.0f, FOCAL_LENGTH) - viewport_u / 2.0f - viewport_v / 2.0f;
 const vec3 pixel00 = viewport_uv + 0.5f * (pixel_delta_u + pixel_delta_v);
 
-float test_sphere(
+bool test_sphere(
     const in t_sphere sphere,
-    const in t_ray ray)
+    const in t_ray ray,
+    const in float ray_min,
+    const in float ray_max,
+    out t_hit_record record)
 {
     const vec3 offset = sphere.center - ray.origin;
     const float a = dot(ray.direction, ray.direction);
@@ -47,25 +60,55 @@ float test_sphere(
     const float discriminant = b * b - a * c;
     if (discriminant < 0)
     {
-        return -1.0f;
+        return false;
     }
-    else
+    float root = (b - sqrt(discriminant)) / a;
+    if (root <= ray_min || ray_max <= root)
     {
-        return (b - sqrt(discriminant)) / a;
+        root = (b + sqrt(discriminant)) / a;
+        if (root <= ray_min || ray_max <= root)
+        {
+            return false;
+        }
     }
+    record.root = root;
+    record.position = ray.origin + ray.direction * root;
+    record.normal = (record.position - sphere.center) / sphere.radius;
+    if (dot(ray.direction, record.normal) >= 0)
+    {
+        record.normal = -record.normal;
+    }
+    return true;
+}
+
+bool test(
+    const in t_ray ray,
+    const float ray_min,
+    const float ray_max,
+    out t_hit_record record)
+{
+    t_hit_record temp_rec; // not needed
+    bool hit = false;
+    float closest = ray_max;
+    for (uint i = 0; i < u_num_spheres; i++)
+    {
+        if (test_sphere(b_spheres[i], ray, ray_min, closest, temp_rec))
+        {
+            hit = true;
+            closest = temp_rec.root;
+            record = temp_rec;
+        }
+    }
+    return hit;
 }
 
 vec3 ray_color(
     const in t_ray ray)
 {
-    t_sphere sphere;
-    sphere.center = vec3(0.0f, 0.0f, -1.0f);
-    sphere.radius = 0.5f;
-    const float t = test_sphere(sphere, ray);
-    if (t > 0.0f)
+    t_hit_record record;
+    if (test(ray, 0.0f, infinity, record))
     {
-        vec3 n = normalize(ray.origin + ray.direction * t - vec3(0, 0, -1));
-        return 0.5 * vec3(n.x + 1, n.y + 1, n.z + 1);
+        return 0.5f * (record.normal + vec3(1.0f, 1.0f, 1.0f));
     }
     const vec3 vector = normalize(ray.direction);
     const float a = 0.5f * (vector.y + 1.0f);

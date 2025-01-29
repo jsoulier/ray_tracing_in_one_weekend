@@ -22,8 +22,14 @@ static SDL_GPUBuffer* create_spheres(
     {{
         .x = 0.0f,
         .y = 0.0f,
-        .z = 0.0f,
-        .radius = 1.0f,
+        .z = -1.0f,
+        .radius = 0.5f,
+    },
+    {
+        .x = 0.0f,
+        .y = -100.5f,
+        .z = -1.0f,
+        .radius = 100.0f,
     }};
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
