@@ -14,14 +14,10 @@ uint hash( uint x ) {
     return x;
 }
 
-
-
 // Compound versions of the hashing algorithm I whipped together.
 uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y)                         ); }
 uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z)             ); }
 uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
-
-
 
 // Construct a float with half-open range [0:1] using low 23 bits.
 // All zeroes yields 0.0, all ones yields the next smallest representable value below 1.0.
@@ -35,8 +31,6 @@ float floatConstruct( uint m ) {
     float  f = uintBitsToFloat( m );       // Range [1:2]
     return f - 1.0;                        // Range [0:1]
 }
-
-
 
 // Pseudo-random value in half-open range [0:1].
 float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
