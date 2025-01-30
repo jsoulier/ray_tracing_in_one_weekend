@@ -28,7 +28,7 @@ struct t_hit
     float offset;
     vec3 position;
     vec3 normal;
-    bool side;
+    bool face;
     t_material material;
 };
 
@@ -44,14 +44,10 @@ layout(set = 0, binding = 0) readonly buffer t_spheres
 {
     t_sphere b_spheres[];
 };
-layout(set = 1, binding = 0, rgba32f) uniform image2D i_image;
+layout(set = 1, binding = 0, rgba32f) writeonly uniform image2D i_image;
 layout(set = 2, binding = 0) uniform t_num_spheres
 {
     uint u_num_spheres;
-};
-layout(set = 2, binding = 1) uniform t_batch
-{
-    uint u_batch;
 };
 
 bool hit_sphere(
@@ -82,8 +78,8 @@ bool hit_sphere(
     hit.offset = root;
     hit.position = ray.origin + ray.direction * root;
     hit.normal = (hit.position - sphere.position) / sphere.radius;
-    hit.side = dot(ray.direction, hit.normal) < 0;
-    if (!hit.side)
+    hit.face = dot(ray.direction, hit.normal) < 0;
+    if (!hit.face)
     {
         hit.normal = -hit.normal;
     }
@@ -103,54 +99,40 @@ bool get_bounce(
     switch (hit.material.type)
     {
     case LAMBERTIAN:
-        {
-            bounce = random3(id, count, depth) + hit.normal;
-            if (dot(bounce, bounce) < epsilon)
-            {
-                bounce = hit.normal;
-            }
-            colour = hit.material.albedo;
-            return true;
-        }
-        break;
+        bounce = random3(id, count, depth) + hit.normal;
+        bounce = dot(bounce, bounce) < epsilon ? hit.normal : bounce;
+        colour = hit.material.albedo;
+        return true;
     case METAL:
-        {
-            bounce = normalize(reflect(ray.direction, hit.normal));
-            bounce += random3(id, count, depth) * hit.material.fuzz;
-            colour = hit.material.albedo;
-            return dot(bounce, hit.normal) > 0;
-        }
-        break;
+        bounce = normalize(reflect(ray.direction, hit.normal));
+        bounce += random3(id, count, depth) * hit.material.fuzz;
+        colour = hit.material.albedo;
+        return dot(bounce, hit.normal) > 0;
     case DIAELECTRIC:
+        colour = vec3(1.0f);
+        float ri;
+        if (hit.face)
         {
-            float ri;
-            if (hit.side)
-            {
-                ri = 1.0f / hit.material.refraction;
-            }
-            else
-            {
-                ri = hit.material.refraction;
-            }
-            vec3 dir = normalize(ray.direction);
-            float cos_theta = min(dot(-dir, hit.normal), 1.0f);
-            float sin_theta = sqrt(1.0f - pow(cos_theta, 2));
-            bool cannot_refract = ri * sin_theta > 1.0f;
-            float r0 = (1.0f - hit.material.refraction) / (1.0f + hit.material.refraction);
-            r0 = pow(r0, 2);
-            const float reflectance = r0 + (1.0f - r0) * pow(1.0f - cos_theta, 5);
-            if (cannot_refract || reflectance > random(vec2(id.x * WIDTH + depth, id.y * HEIGHT + count)))
-            {
-                bounce = reflect(dir, hit.normal);
-            }
-            else
-            {
-                bounce = refract(dir, hit.normal, ri);
-            }
-            colour = vec3(1.0f);
-            return true;
+            ri = 1.0f / hit.material.refraction;
         }
-        break;
+        else
+        {
+            ri = hit.material.refraction;
+        }
+        const vec3 vector = normalize(ray.direction);
+        const float c = min(dot(-vector, hit.normal), 1.0f);
+        const float s = sqrt(1.0f - pow(c, 2));
+        const float r = pow((1.0f - hit.material.refraction) / (1.0f + hit.material.refraction), 2);
+        const float reflectance = r + (1.0f - r) * pow(1.0f - c, 5);
+        if (ri * s > 1.0f || reflectance > random(vec2(id.x * WIDTH + depth, id.y * HEIGHT + count)))
+        {
+            bounce = reflect(vector, hit.normal);
+        }
+        else
+        {
+            bounce = refract(vector, hit.normal, ri);
+        }
+        return true;
     }
     return false;
 }
@@ -220,7 +202,7 @@ void main()
     const vec3 defocus_u = vector_u * defocus_radius;
     const vec3 defocus_v = vector_v * defocus_radius;
     vec3 colour = vec3(0.0f);
-    for (uint count = 0; count < SAMPLES / BATCHES; count++)
+    for (uint count = 0; count < SAMPLES; count++)
     {
         const vec2 offset = random2(id, count) - 0.5f;
         const vec3 target = pixel_00 + ((id.x + offset.x) * pixel_u) + ((id.y + offset.y) * pixel_v);
@@ -237,15 +219,5 @@ void main()
         ray.direction = target - ray.origin;
         colour += get_colour(id, count, ray);
     }
-    vec3 previous;
-    if (u_batch > 0)
-    {
-        previous = imageLoad(i_image, ivec2(id.xy)).xyz;
-    }
-    else
-    {
-        previous = vec3(0.0f);
-    }
-    colour = colour / (SAMPLES / BATCHES);
-    imageStore(i_image, ivec2(id.xy), vec4(previous + colour, 1.0f));
+    imageStore(i_image, ivec2(id.xy), vec4(sqrt(colour / SAMPLES), 1.0f));
 }

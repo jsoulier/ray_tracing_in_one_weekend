@@ -204,6 +204,12 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_free(code);
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+    if (!commands)
+    {
+        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
     SDL_GPUTextureCreateInfo tci = {0};
     tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ | SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -218,6 +224,14 @@ int main(
         SDL_Log("Failed to create texture: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+    SDL_GPUStorageTextureReadWriteBinding stb = {0};
+    stb.texture = texture;
+    SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
+    if (!pass)
+    {
+        SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
     uint32_t num_spheres;
     SDL_GPUBuffer* spheres = create_spheres(device, &num_spheres);
     if (!spheres)
@@ -225,30 +239,11 @@ int main(
         SDL_Log("Failed to create spheres");
         return EXIT_FAILURE;
     }
-    for (uint32_t batch = 0; batch < BATCHES; batch++)
-    {
-        SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
-        if (!commands)
-        {
-            SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
-            return EXIT_FAILURE;
-        }
-        SDL_GPUStorageTextureReadWriteBinding stb = {0};
-        stb.texture = texture;
-        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
-        if (!pass)
-        {
-            SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
-            return EXIT_FAILURE;
-        }
-        SDL_BindGPUComputePipeline(pass, pipeline);
-        SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
-        SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
-        SDL_PushGPUComputeUniformData(commands, 1, &batch, sizeof(batch));
-        SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
-        SDL_EndGPUComputePass(pass);
-        SDL_SubmitGPUCommandBuffer(commands);
-    }
+    SDL_BindGPUComputePipeline(pass, pipeline);
+    SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
+    SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
+    SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
+    SDL_EndGPUComputePass(pass);
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
     tbci.size = WIDTH * HEIGHT * 4;
@@ -256,12 +251,6 @@ int main(
     if (!results)
     {
         SDL_Log("Failed to create transfer buffer: %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
-    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
-    if (!commands)
-    {
-        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);

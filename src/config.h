@@ -4,9 +4,8 @@
 #define THREADS 256
 #define WIDTH 800.0f
 #define HEIGHT 450.0f
-#define SAMPLES 10
-#define BATCHES 10
-#define DEPTH 10
+#define SAMPLES 20
+#define DEPTH 30
 #define SOURCE vec3(13.0f, 2.0f, 3.0f)
 #define TARGET vec3(0.0f, 0.0f, 0.0f)
 #define UP vec3(0.0f, 1.0f, 0.0f)
