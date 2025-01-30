@@ -296,7 +296,7 @@ int main(
     SDL_ReleaseGPUBuffer(device, spheres);
     SDL_ReleaseGPUComputePipeline(device, pipeline);
     SDL_DestroyGPUDevice(device);
-    SDL_OpenURL("image.bmp");
+    SDL_OpenURL(IMAGE);
     SDL_Quit();
     return EXIT_SUCCESS;
 }
