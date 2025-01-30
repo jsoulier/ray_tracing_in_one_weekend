@@ -3,10 +3,6 @@
 #include "config.h"
 #include "random.glsl"
 
-const float infinity = 3.402823466e+38;
-const float pi = 3.1415926535897932385;
-const float epsilon = 0.00000001f;
-
 struct t_ray
 {
     vec3 origin;
@@ -50,6 +46,25 @@ layout(set = 2, binding = 0) uniform t_num_spheres
     uint u_num_spheres;
 };
 
+const float infinity = 3.402823466e+38;
+const float pi = 3.1415926535897932385;
+const float epsilon = 0.00000001f;
+const vec2 image_size = vec2(WIDTH, HEIGHT);
+const float viewport_h = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS_LENGTH;
+const float viewport_w = viewport_h * image_size.x / image_size.y;
+const vec3 vector_w = normalize(SOURCE - TARGET);
+const vec3 vector_u = normalize(cross(UP, vector_w));
+const vec3 vector_v = cross(vector_w, vector_u);
+const vec3 viewport_u = viewport_w * vector_u;
+const vec3 viewport_v = viewport_h * -vector_v;
+const vec3 pixel_u = viewport_u / image_size.x;
+const vec3 pixel_v = viewport_v / image_size.y;
+const vec3 viewport_uv = SOURCE - FOCUS_LENGTH * vector_w - (viewport_u + viewport_v) / 2.0f;
+const vec3 pixel_00 = viewport_uv + (pixel_u + pixel_v) / 2.0f;
+const float defocus_radius = FOCUS_LENGTH * tan(radians(DEFOCUS_ANGLE / 2.0f));
+const vec3 defocus_u = vector_u * defocus_radius;
+const vec3 defocus_v = vector_v * defocus_radius;
+
 bool hit_sphere(
     const in t_sphere sphere,
     const in t_ray ray,
@@ -62,7 +77,7 @@ bool hit_sphere(
     const float b = dot(ray.direction, offset);
     const float c = dot(offset, offset) - pow(sphere.radius, 2);
     const float discriminant = b * b - a * c;
-    if (discriminant < 0)
+    if (discriminant < 0.0f)
     {
         return false;
     }
@@ -78,7 +93,7 @@ bool hit_sphere(
     hit.offset = root;
     hit.position = ray.origin + ray.direction * root;
     hit.normal = (hit.position - sphere.position) / sphere.radius;
-    hit.face = dot(ray.direction, hit.normal) < 0;
+    hit.face = dot(ray.direction, hit.normal) < 0.0f;
     if (!hit.face)
     {
         hit.normal = -hit.normal;
@@ -107,24 +122,30 @@ bool get_bounce(
         bounce = normalize(reflect(ray.direction, hit.normal));
         bounce += random3(id, count, depth) * hit.material.fuzz;
         colour = hit.material.albedo;
-        return dot(bounce, hit.normal) > 0;
+        return dot(bounce, hit.normal) > 0.0f;
     case DIAELECTRIC:
         colour = vec3(1.0f);
+        const float m = hit.material.refraction;
         float ri;
         if (hit.face)
         {
-            ri = 1.0f / hit.material.refraction;
+            ri = 1.0f / m;
         }
         else
         {
-            ri = hit.material.refraction;
+            ri = m;
         }
         const vec3 vector = normalize(ray.direction);
         const float c = min(dot(-vector, hit.normal), 1.0f);
         const float s = sqrt(1.0f - pow(c, 2));
-        const float r = pow((1.0f - hit.material.refraction) / (1.0f + hit.material.refraction), 2);
+        const float r = pow((1.0f - m) / (1.0f + m), 2);
+        if (ri * s > 1.0f)
+        {
+            bounce = reflect(vector, hit.normal);
+            return true;
+        }
         const float reflectance = r + (1.0f - r) * pow(1.0f - c, 5);
-        if (ri * s > 1.0f || reflectance > random(vec2(id.x * WIDTH + depth, id.y * HEIGHT + count)))
+        if (reflectance > random(id * image_size + vec2(depth, count)))
         {
             bounce = reflect(vector, hit.normal);
         }
@@ -163,7 +184,7 @@ vec3 get_colour(
             vec3 colour;
             if (!get_bounce(ray, hit, id, count, depth, bounce, colour))
             {
-                colour = vec3(0.0f);
+                return vec3(0.0f);
             }
             ray = t_ray(hit.position, bounce);
             attenuation *= colour;
@@ -186,26 +207,13 @@ void main()
     {
         return;
     }
-    const vec2 image_size = vec2(WIDTH, HEIGHT);
-    const float viewport_h = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS_LENGTH;
-    const float viewport_w = viewport_h * image_size.x / image_size.y;
-    const vec3 vector_w = normalize(SOURCE - TARGET);
-    const vec3 vector_u = normalize(cross(UP, vector_w));
-    const vec3 vector_v = cross(vector_w, vector_u);
-    const vec3 viewport_u = viewport_w * vector_u;
-    const vec3 viewport_v = viewport_h * -vector_v;
-    const vec3 pixel_u = viewport_u / image_size.x;
-    const vec3 pixel_v = viewport_v / image_size.y;
-    const vec3 viewport_uv = SOURCE - FOCUS_LENGTH * vector_w - (viewport_u + viewport_v) / 2.0f;
-    const vec3 pixel_00 = viewport_uv + (pixel_u + pixel_v) / 2.0f;
-    const float defocus_radius = FOCUS_LENGTH * tan(radians(DEFOCUS_ANGLE / 2.0f));
-    const vec3 defocus_u = vector_u * defocus_radius;
-    const vec3 defocus_v = vector_v * defocus_radius;
     vec3 colour = vec3(0.0f);
     for (uint count = 0; count < SAMPLES; count++)
     {
         const vec2 offset = random2(id, count) - 0.5f;
-        const vec3 target = pixel_00 + ((id.x + offset.x) * pixel_u) + ((id.y + offset.y) * pixel_v);
+        vec3 target = pixel_00;
+        target += ((id.x + offset.x) * pixel_u);
+        target += ((id.y + offset.y) * pixel_v);
         t_ray ray;
         for (uint i = 0; i < 10; i++)
         {
@@ -215,9 +223,12 @@ void main()
                 break;
             }
         }
-        ray.origin = SOURCE + (ray.origin.x * defocus_u) + (ray.origin.y * defocus_v);
+        ray.origin = SOURCE;
+        ray.origin += (ray.origin.x * defocus_u);
+        ray.origin += (ray.origin.y * defocus_v);
         ray.direction = target - ray.origin;
         colour += get_colour(id, count, ray);
     }
-    imageStore(i_image, ivec2(id.xy), vec4(sqrt(colour / SAMPLES), 1.0f));
+    colour = sqrt(colour / SAMPLES);
+    imageStore(i_image, ivec2(id.xy), vec4(colour, 1.0f));
 }
