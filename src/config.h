@@ -2,10 +2,10 @@
 #define CONFIG_H
 
 #define THREADS 256
-#define WIDTH 800.0f
-#define HEIGHT 450.0f
+#define WIDTH 960.0f
+#define HEIGHT 540.0f
 #define SAMPLES 200
-#define DEPTH 50
+#define DEPTH 20
 #define FOV 20
 #define SOURCE vec3(13.0f, 2.0f, 3.0f)
 #define TARGET vec3(0.0f, 0.0f, -1.0f)
