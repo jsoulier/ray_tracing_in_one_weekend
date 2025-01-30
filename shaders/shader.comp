@@ -46,30 +46,11 @@ layout(set = 2, binding = 0) uniform t_num_spheres
     uint u_num_spheres;
 };
 
-const float infinity = 3.402823466e+38;
-const float pi = 3.1415926535897932385;
-const float epsilon = 0.00000001f;
-const vec2 image_size = vec2(WIDTH, HEIGHT);
-const float viewport_h = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS_LENGTH;
-const float viewport_w = viewport_h * image_size.x / image_size.y;
-const vec3 vector_w = normalize(SOURCE - TARGET);
-const vec3 vector_u = normalize(cross(UP, vector_w));
-const vec3 vector_v = cross(vector_w, vector_u);
-const vec3 viewport_u = viewport_w * vector_u;
-const vec3 viewport_v = viewport_h * -vector_v;
-const vec3 pixel_u = viewport_u / image_size.x;
-const vec3 pixel_v = viewport_v / image_size.y;
-const vec3 viewport_uv = SOURCE - FOCUS_LENGTH * vector_w - (viewport_u + viewport_v) / 2.0f;
-const vec3 pixel_00 = viewport_uv + (pixel_u + pixel_v) / 2.0f;
-const float defocus_radius = FOCUS_LENGTH * tan(radians(DEFOCUS_ANGLE / 2.0f));
-const vec3 defocus_u = vector_u * defocus_radius;
-const vec3 defocus_v = vector_v * defocus_radius;
-
 bool hit_sphere(
     const in t_sphere sphere,
     const in t_ray ray,
-    const in float ray_min,
-    const in float ray_max,
+    const in float near,
+    const in float far,
     out t_hit hit)
 {
     const vec3 offset = sphere.position - ray.origin;
@@ -82,10 +63,10 @@ bool hit_sphere(
         return false;
     }
     float root = (b - sqrt(discriminant)) / a;
-    if (root <= ray_min || ray_max <= root)
+    if (root <= near || far <= root)
     {
         root = (b + sqrt(discriminant)) / a;
-        if (root <= ray_min || ray_max <= root)
+        if (root <= near || far <= root)
         {
             return false;
         }
@@ -115,7 +96,7 @@ bool get_bounce(
     {
     case LAMBERTIAN:
         bounce = random3(id, count, depth) + hit.normal;
-        bounce = dot(bounce, bounce) < epsilon ? hit.normal : bounce;
+        bounce = dot(bounce, bounce) < 0.001f ? hit.normal : bounce;
         colour = hit.material.albedo;
         return true;
     case METAL:
@@ -145,7 +126,8 @@ bool get_bounce(
             return true;
         }
         const float reflectance = r + (1.0f - r) * pow(1.0f - c, 5);
-        if (reflectance > random(id * image_size + vec2(depth, count)))
+        const vec2 size = vec2(WIDTH, HEIGHT);
+        if (reflectance > random(id * size + vec2(depth, count)))
         {
             bounce = reflect(vector, hit.normal);
         }
@@ -158,47 +140,6 @@ bool get_bounce(
     return false;
 }
 
-vec3 get_colour(
-    const in uvec2 id,
-    const in uint count,
-    in t_ray ray)
-{
-    vec3 attenuation = vec3(1.0f);
-    for (uint depth = 0; depth < DEPTH; depth++)
-    {
-        t_hit hit;
-        float a = 0.001f;
-        float b = infinity;
-        bool status = false;
-        for (uint i = 0; i < u_num_spheres; i++)
-        {
-            if (hit_sphere(b_spheres[i], ray, a, b, hit))
-            {
-                status = true;
-                b = hit.offset;
-            }
-        }
-        if (status)
-        {
-            vec3 bounce;
-            vec3 colour;
-            if (!get_bounce(ray, hit, id, count, depth, bounce, colour))
-            {
-                return vec3(0.0f);
-            }
-            ray = t_ray(hit.position, bounce);
-            attenuation *= colour;
-            continue;
-        }
-        const float c = 0.5f * (normalize(ray.direction).y + 1.0f);
-        const vec3 sky = vec3(0.5f, 0.7f, 1.0f);
-        const vec3 horizon = vec3(1.0f, 1.0f, 1.0f);
-        const vec3 colour = (1.0f - c) * horizon + c * sky;
-        return attenuation * colour;
-    }
-    return attenuation;
-}
-
 void main()
 {
     const uvec2 size = imageSize(i_image);
@@ -207,13 +148,31 @@ void main()
     {
         return;
     }
+    const vec2 image_size = vec2(WIDTH, HEIGHT);
+    const vec3 vector_w = normalize(SOURCE - TARGET);
+    const vec3 vector_u = normalize(cross(UP, vector_w));
+    const vec3 vector_v = cross(vector_w, vector_u);
+    const float viewport_h = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS;
+    const float viewport_w = viewport_h * image_size.x / image_size.y;
+    const float oof = FOCUS * tan(radians(OOF / 2.0f));
+    const vec3 viewport_u = viewport_w * vector_u;
+    const vec3 viewport_v = viewport_h * -vector_v;
+    const vec3 pixel_u = viewport_u / image_size.x;
+    const vec3 pixel_v = viewport_v / image_size.y;
+    const vec3 pixel_0 = 
+        SOURCE -
+        FOCUS * vector_w -
+        viewport_u / 2.0f -
+        viewport_v / 2.0f +
+        pixel_u / 2.0f +
+        pixel_v / 2.0f;
     vec3 colour = vec3(0.0f);
     for (uint count = 0; count < SAMPLES; count++)
     {
         const vec2 offset = random2(id, count) - 0.5f;
-        vec3 target = pixel_00;
-        target += ((id.x + offset.x) * pixel_u);
-        target += ((id.y + offset.y) * pixel_v);
+        const vec3 target = pixel_0 +
+            (id.x + offset.x) * pixel_u +
+            (id.y + offset.y) * pixel_v;
         t_ray ray;
         for (uint i = 0; i < 10; i++)
         {
@@ -223,11 +182,43 @@ void main()
                 break;
             }
         }
-        ray.origin = SOURCE;
-        ray.origin += (ray.origin.x * defocus_u);
-        ray.origin += (ray.origin.y * defocus_v);
+        ray.origin = SOURCE +
+            (ray.origin.x * vector_u * oof) +
+            (ray.origin.y * vector_v * oof);
         ray.direction = target - ray.origin;
-        colour += get_colour(id, count, ray);
+        vec3 attenuation = vec3(1.0f);
+        for (uint depth = 0; depth < DEPTH; depth++)
+        {
+            t_hit hit;
+            float near = 0.001f;
+            float far = 1000000.0f;
+            bool status = false;
+            for (uint i = 0; i < u_num_spheres; i++)
+            {
+                if (hit_sphere(b_spheres[i], ray, near, far, hit))
+                {
+                    status = true;
+                    far = hit.offset;
+                }
+            }
+            if (!status)
+            {
+                const float y = normalize(ray.direction).y * 0.5f + 0.5f;
+                const vec3 colour = (1.0f - y) * HORIZON + y * SKY;
+                attenuation *= colour;
+                break;
+            }
+            vec3 bounce;
+            vec3 colour;
+            if (!get_bounce(ray, hit, id, count, depth, bounce, colour))
+            {
+                attenuation = vec3(0.0f);
+                break;
+            }
+            ray = t_ray(hit.position, bounce);
+            attenuation *= colour;
+        }
+        colour += attenuation;
     }
     colour = sqrt(colour / SAMPLES);
     imageStore(i_image, ivec2(id.xy), vec4(colour, 1.0f));
