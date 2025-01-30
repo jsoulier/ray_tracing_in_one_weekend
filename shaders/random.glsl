@@ -4,7 +4,10 @@
     05 July 2013
 */
 
-// A single iteration of Bob Jenkins' One-At-A-Time hashing algorithm.
+#ifndef RANDOM_GLSL
+#define RANDOM_GLSL
+
+// A single count of Bob Jenkins' One-At-A-Time hashing algorithm.
 uint hash( uint x ) {
     x += ( x << 10u );
     x ^= ( x >>  6u );
@@ -43,3 +46,40 @@ float random( float x, float a, float b ) { return a + (b - a) * random(x); }
 float random( vec2  v, float a, float b ) { return a + (b - a) * random(v); }
 float random( vec3  v, float a, float b ) { return a + (b - a) * random(v); }
 float random( vec4  v, float a, float b ) { return a + (b - a) * random(v); }
+
+// Added by jsoulier
+vec2 random2(
+    const in uvec2 id,
+    const in uint count)
+{
+    const uint i = count + 1;
+    vec2 vector;
+    vector.x = random(vec4(id.x, id.y, count, 13.0f), -1.0f, 1.0f);
+    vector.y = random(vec4(id.x, id.y, count, 73.0f), -1.0f, 1.0f);
+    return vector;
+}
+vec2 random2(
+    const in uvec2 id,
+    const in uint count,
+    const in uint depth)
+{
+    const uint i = count + 1;
+    vec2 vector;
+    vector.x = random(vec4(id.x, id.y, depth, i * 13.0f), -1.0f, 1.0f);
+    vector.y = random(vec4(id.x, id.y, depth, i * 73.0f), -1.0f, 1.0f);
+    return vector;
+}
+vec3 random3(
+    const in uvec2 id,
+    const in uint count,
+    const in uint depth)
+{
+    const uint i = count + 1;
+    vec3 vector;
+    vector.x = random(vec4(id.x, id.y, depth, i * 17.0f), -1.0f, 1.0f);
+    vector.y = random(vec4(id.x, id.y, depth, i * 73.0f), -1.0f, 1.0f);
+    vector.z = random(vec4(id.x, id.y, depth, i * 97.0f), -1.0f, 1.0f);
+    return vector;
+}
+
+#endif
