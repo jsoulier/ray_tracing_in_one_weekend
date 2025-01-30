@@ -211,7 +211,7 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_GPUTextureCreateInfo tci = {0};
-    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ | SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
     tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     tci.width = WIDTH;
