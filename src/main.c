@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "config.h"
 
 static SDL_GPUBuffer* create_spheres(
@@ -20,60 +21,99 @@ static SDL_GPUBuffer* create_spheres(
         float r;
         float g;
         float b;
-        uint32_t scatter;
+        uint32_t type;
         float fuzz;
         float refraction;
+        uint32_t padding1;
         uint32_t padding2;
-        uint32_t padding3;
     }
-    const spheres[] =
+    spheres[4 + 484] =
     {{
         .x = 0.0f,
-        .y = -100.5f,
-        .z = -1.0f,
-        .radius = 100.0f,
-        .r = 0.8f,
-        .g = 0.8f,
-        .b = 0.0f,
-        .scatter = LAMBERTIAN,
+        .y = -1000.0f,
+        .z = 0.0f,
+        .radius = 1000.0f,
+        .r = 0.5f,
+        .g = 0.5f,
+        .b = 0.5f,
+        .type = LAMBERTIAN,
+        .fuzz = 0.0f,
+        .refraction = 0.0f,
     },
     {
         .x = 0.0f,
-        .y = 0.0f,
-        .z = -1.2f,
-        .radius = 0.5f,
-        .r = 0.1f,
-        .g = 0.2f,
-        .b = 0.5f,
-        .scatter = LAMBERTIAN,
-    },
-    {
-        .x = -1.0f,
-        .y = 0.0f,
-        .z = -1.0f,
-        .radius = 0.5f,
-        .scatter = DIAELECTRIC,
+        .y = 1.0f,
+        .z = 0.0f,
+        .radius = 1.0f,
+        .r = 0.0f,
+        .g = 0.0f,
+        .b = 0.0f,
+        .type = DIAELECTRIC,
+        .fuzz = 0.0f,
         .refraction = 1.5f,
     },
     {
-        .x = 1.0f,
-        .y = 0.0f,
-        .z = -1.0f,
-        .radius = 0.5f,
-        .r = 0.8f,
-        .g = 0.6f,
-        .b = 0.2f,
-        .scatter = METAL,
-        .fuzz = 1.0f,
+        .x = -4.0f,
+        .y = 1.0f,
+        .z = 0.0f,
+        .radius = 1.0f,
+        .r = 0.4f,
+        .g = 0.2f,
+        .b = 0.1f,
+        .type = LAMBERTIAN,
+        .fuzz = 0.0f,
+        .refraction = 1.5f,
     },
     {
-        .x = -1.0f,
-        .y = 0.0f,
-        .z = -1.0f,
-        .radius = 0.4f,
-        .scatter = DIAELECTRIC,
-        .refraction = 1.0f / 1.5f,
+        .x = 4.0f,
+        .y = 1.0f,
+        .z = 0.0f,
+        .radius = 1.0f,
+        .r = 0.7f,
+        .g = 0.6f,
+        .b = 0.5f,
+        .type = METAL,
+        .fuzz = 0.0f,
+        .refraction = 1.5f,
     }};
+    srand(time(NULL));
+    for (int a = -11; a < 11; a++)
+    for (int b = -11; b < 11; b++)
+    {
+        const int i = 4 + (a + 11) * 22 + b + 11;
+        const float material = rand() / (RAND_MAX + 1.0f);
+        spheres[i].x = a + 0.9f * rand() / (RAND_MAX + 1.0f);
+        spheres[i].y = 0.2f;
+        spheres[i].z = b + 0.9f * rand() / (RAND_MAX + 1.0f);
+        spheres[i].radius = 0.2f;
+        if (material < 0.8f)
+        {
+            spheres[i].type = LAMBERTIAN;
+            spheres[i].r = rand() / (RAND_MAX + 1.0f);
+            spheres[i].g = rand() / (RAND_MAX + 1.0f);
+            spheres[i].b = rand() / (RAND_MAX + 1.0f);
+            spheres[i].fuzz = 0.0f;
+            spheres[i].refraction = 0.0f;
+        }
+        else if (material < 0.95f)
+        {
+            spheres[i].type = METAL;
+            spheres[i].r = rand() / (RAND_MAX + 1.0f);
+            spheres[i].g = rand() / (RAND_MAX + 1.0f);
+            spheres[i].b = rand() / (RAND_MAX + 1.0f);
+            spheres[i].fuzz = rand() / (RAND_MAX + 1.0f) * 0.5f;
+            spheres[i].refraction = 0.0f;
+        }
+        else
+        {
+            spheres[i].type = DIAELECTRIC;
+            spheres[i].r = 0.0f,
+            spheres[i].g = 0.0f,
+            spheres[i].b = 0.0f,
+            spheres[i].fuzz = 0.0f;
+            spheres[i].refraction = 1.5f;
+        }
+    }
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     tbci.size = sizeof(spheres);
@@ -124,6 +164,7 @@ int main(
     int argc,
     char** argv)
 {
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_TRACE);
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
@@ -148,7 +189,7 @@ int main(
     gpci.threadcount_x = THREADS;
     gpci.threadcount_y = 1;
     gpci.threadcount_z = 1;
-    gpci.num_uniform_buffers = 1;
+    gpci.num_uniform_buffers = 2;
     gpci.num_samplers = 0;
     gpci.num_readwrite_storage_buffers = 0;
     gpci.num_readonly_storage_buffers = 1;
@@ -163,14 +204,8 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_free(code);
-    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
-    if (!commands)
-    {
-        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
     SDL_GPUTextureCreateInfo tci = {0};
-    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_READ | SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
     tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
     tci.width = WIDTH;
@@ -183,14 +218,6 @@ int main(
         SDL_Log("Failed to create texture: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUStorageTextureReadWriteBinding stb = {0};
-    stb.texture = texture;
-    SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
-    if (!pass)
-    {
-        SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
     uint32_t num_spheres;
     SDL_GPUBuffer* spheres = create_spheres(device, &num_spheres);
     if (!spheres)
@@ -198,11 +225,30 @@ int main(
         SDL_Log("Failed to create spheres");
         return EXIT_FAILURE;
     }
-    SDL_BindGPUComputePipeline(pass, pipeline);
-    SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
-    SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
-    SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
-    SDL_EndGPUComputePass(pass);
+    for (uint32_t batch = 0; batch < BATCHES; batch++)
+    {
+        SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+        if (!commands)
+        {
+            SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+        SDL_GPUStorageTextureReadWriteBinding stb = {0};
+        stb.texture = texture;
+        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
+        if (!pass)
+        {
+            SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+        SDL_BindGPUComputePipeline(pass, pipeline);
+        SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
+        SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
+        SDL_PushGPUComputeUniformData(commands, 1, &batch, sizeof(batch));
+        SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
+        SDL_EndGPUComputePass(pass);
+        SDL_SubmitGPUCommandBuffer(commands);
+    }
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
     tbci.size = WIDTH * HEIGHT * 4;
@@ -212,8 +258,14 @@ int main(
         SDL_Log("Failed to create transfer buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+    if (!commands)
+    {
+        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);
-    if (!pass)
+    if (!copy)
     {
         SDL_Log("Failed to begin copy pass: %s", SDL_GetError());
         return EXIT_FAILURE;
