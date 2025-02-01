@@ -189,7 +189,7 @@ int main(
     gpci.threadcount_x = THREADS;
     gpci.threadcount_y = 1;
     gpci.threadcount_z = 1;
-    gpci.num_uniform_buffers = 2;
+    gpci.num_uniform_buffers = 1;
     gpci.num_samplers = 0;
     gpci.num_readwrite_storage_buffers = 0;
     gpci.num_readonly_storage_buffers = 1;
