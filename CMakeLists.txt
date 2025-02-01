@@ -22,7 +22,7 @@ function(spirv FILE)
         OUTPUT ${OUTPUT}
         COMMAND glslc ${SOURCE} -o ${OUTPUT} -I src
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        DEPENDS ${SOURCE} src/config.h
+        DEPENDS ${SOURCE} src/config.h shaders/random.glsl
         BYPRODUCTS ${OUTPUT}
         COMMENT ${SOURCE}
     )
