@@ -1,4 +1,4 @@
-# SDL3 Ray Tracing
+# SDL3 Ray Tracing In One Weekend
 
 Implementation of [Ray Tracing in One Weekend](https://raytracing.github.io/) using the new SDL3 GPU API with compute shaders
 
@@ -12,14 +12,14 @@ Implementation of [Ray Tracing in One Weekend](https://raytracing.github.io/) us
 Install the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) for glslc
 
 ```bash
-git clone https://github.com/jsoulier/sdl3_ray_tracing --recurse-submodules
-cd sdl3_ray_tracing
+git clone https://github.com/jsoulier/sdl3_rtiow --recurse-submodules
+cd sdl3_rtiow
 mkdir build
 cd build
 cmake ..
 cmake --build . --parallel 8 --config Release
 cd bin
-./sdl3_ray_tracing.exe
+./sdl3_rtiow.exe
 ```
 
 #### Linux
@@ -29,14 +29,14 @@ sudo apt install glslc
 ```
 
 ```bash
-git clone https://github.com/jsoulier/sdl3_ray_tracing --recurse-submodules
-cd sdl3_ray_tracing
+git clone https://github.com/jsoulier/sdl3_rtiow --recurse-submodules
+cd sdl3_rtiow
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel 8
 cd bin
-./sdl3_ray_tracing
+./sdl3_rtiow
 ```
 
 ### Bugs

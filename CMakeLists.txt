@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(sdl3_ray_tracing)
+project(sdl3_rtiow)
 
 set(BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BINARY_DIR})
@@ -11,9 +11,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
 make_directory(${BINARY_DIR})
 
 add_subdirectory(lib/SDL)
-add_executable(sdl3_ray_tracing WIN32 src/main.c)
-set_target_properties(sdl3_ray_tracing PROPERTIES C_STANDARD 11)
-target_link_libraries(sdl3_ray_tracing PUBLIC SDL3::SDL3)
+add_executable(sdl3_rtiow WIN32 src/main.c)
+set_target_properties(sdl3_rtiow PROPERTIES C_STANDARD 11)
+target_link_libraries(sdl3_rtiow PUBLIC SDL3::SDL3)
 
 function(spirv FILE)
     set(SOURCE shaders/${FILE})
@@ -28,7 +28,7 @@ function(spirv FILE)
     )
     string(REPLACE . _ NAME ${FILE})
     add_custom_target(${NAME} DEPENDS ${OUTPUT})
-    add_dependencies(sdl3_ray_tracing ${NAME})
+    add_dependencies(sdl3_rtiow ${NAME})
 endfunction()
 spirv(shader.comp)
 
