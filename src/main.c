@@ -170,12 +170,24 @@ int main(
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+    SDL_Window* window = SDL_CreateWindow("", WIDTH, HEIGHT, 0);
+    if (!window)
+    {
+        SDL_Log("Failed to create window: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
     SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
     if (!device)
     {
         SDL_Log("Failed to create device: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+    if (!SDL_ClaimWindowForGPUDevice(device, window))
+    {
+        SDL_Log("Failed to create swapchain: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_SetWindowAlwaysOnTop(window, true);
     size_t size;
     void* code = SDL_LoadFile("shader.comp", &size);
     if (!code)
@@ -193,7 +205,7 @@ int main(
     gpci.num_samplers = 0;
     gpci.num_readwrite_storage_buffers = 0;
     gpci.num_readonly_storage_buffers = 1;
-    gpci.num_readwrite_storage_textures = 1;
+    gpci.num_readwrite_storage_textures = 2;
     gpci.num_readonly_storage_textures = 0;
     gpci.format = SDL_GPU_SHADERFORMAT_SPIRV;
     gpci.entrypoint = "main";
@@ -204,12 +216,6 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_free(code);
-    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
-    if (!commands)
-    {
-        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
     SDL_GPUTextureCreateInfo tci = {0};
     tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE |
         SDL_GPU_TEXTUREUSAGE_SAMPLER;
@@ -219,8 +225,22 @@ int main(
     tci.height = HEIGHT;
     tci.num_levels = 1;
     tci.layer_count_or_depth = 1;
-    SDL_GPUTexture* texture = SDL_CreateGPUTexture(device, &tci);
-    if (!texture)
+    SDL_GPUTexture* texture1 = SDL_CreateGPUTexture(device, &tci);
+    if (!texture1)
+    {
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUTexture* texture2 = SDL_CreateGPUTexture(device, &tci);
+    if (!texture2)
+    {
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+    tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    SDL_GPUTexture* texture3 = SDL_CreateGPUTexture(device, &tci);
+    if (!texture3)
     {
         SDL_Log("Failed to create texture: %s", SDL_GetError());
         return EXIT_FAILURE;
@@ -234,9 +254,16 @@ int main(
     }
     for (uint32_t batch = 0; batch < BATCHES; batch++)
     {
-        SDL_GPUStorageTextureReadWriteBinding stb = {0};
-        stb.texture = texture;
-        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
+        SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+        if (!commands)
+        {
+            SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+        SDL_GPUStorageTextureReadWriteBinding stb[2] = {0};
+        stb[0].texture = texture1;
+        stb[1].texture = texture2;
+        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, stb, 2, NULL, 0);
         if (!pass)
         {
             SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
@@ -248,32 +275,49 @@ int main(
         SDL_PushGPUComputeUniformData(commands, 1, &batch, sizeof(batch));
         SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
         SDL_EndGPUComputePass(pass);
+        SDL_GPUTexture* swapchain;
+        uint32_t width;
+        uint32_t height;
+        SDL_WaitForGPUSwapchain(device, window);
+        if (!SDL_AcquireGPUSwapchainTexture(commands, window, &swapchain, &width, &height))
+        {
+            SDL_Log("Failed to acquire swapchain texture: %s", SDL_GetError());
+            continue;
+        }
+        SDL_GPUBlitInfo blit = {0};
+        blit.source.texture = texture2;
+        blit.source.w = WIDTH;
+        blit.source.h = HEIGHT;
+        blit.destination.texture = swapchain;
+        blit.destination.w = width;
+        blit.destination.h = height;
+        SDL_BlitGPUTexture(commands, &blit);
+        SDL_SubmitGPUCommandBuffer(commands);
+        SDL_Delay(DELAY);
     }
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
     tbci.size = WIDTH * HEIGHT * 4;
-    SDL_GPUTransferBuffer* results = SDL_CreateGPUTransferBuffer(device, &tbci);
-    if (!results)
+    SDL_GPUTransferBuffer* tbo = SDL_CreateGPUTransferBuffer(device, &tbci);
+    if (!tbo)
     {
         SDL_Log("Failed to create transfer buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    tci.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
-    tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
-    SDL_GPUTexture* texture2 = SDL_CreateGPUTexture(device, &tci);
-    if (!texture2)
+    SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
+    if (!commands)
     {
-        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        SDL_Log("Failed to acquire command buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUBlitInfo bi = {0};
-    bi.source.texture = texture;
-    bi.source.w = WIDTH;
-    bi.source.h = HEIGHT;
-    bi.destination.texture = texture2;
-    bi.destination.w = WIDTH;
-    bi.destination.h = HEIGHT;
-    SDL_BlitGPUTexture(commands, &bi);
+    SDL_GPUBlitInfo blit = {0};
+    blit.source.texture = texture1;
+    blit.source.w = WIDTH;
+    blit.source.h = HEIGHT;
+    blit.destination.texture = texture3;
+    blit.destination.w = WIDTH;
+    blit.destination.h = HEIGHT;
+    SDL_BlitGPUTexture(commands, &blit);
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);
     if (!copy)
     {
@@ -282,11 +326,11 @@ int main(
     }
     SDL_GPUTextureRegion src = {0};
     SDL_GPUTextureTransferInfo dst = {0};
-    src.texture = texture2;
+    src.texture = texture3;
     src.w = WIDTH;
     src.h = HEIGHT;
     src.d = 1;
-    dst.transfer_buffer = results;
+    dst.transfer_buffer = tbo;
     SDL_DownloadFromGPUTexture(copy, &src, &dst);
     SDL_EndGPUCopyPass(copy);
     SDL_GPUFence* fence = SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
@@ -297,7 +341,7 @@ int main(
     }
     SDL_WaitForGPUFences(device, true, &fence, 1);
     SDL_ReleaseGPUFence(device, fence);
-    void* data = SDL_MapGPUTransferBuffer(device, results, false);
+    void* data = SDL_MapGPUTransferBuffer(device, tbo, false);
     if (!data)
     {
         SDL_Log("Failed to map transfer buffer: %s", SDL_GetError());
@@ -311,13 +355,16 @@ int main(
     }
     SDL_SaveBMP(surface, IMAGE);
     SDL_DestroySurface(surface);
-    SDL_UnmapGPUTransferBuffer(device, results);
-    SDL_ReleaseGPUTransferBuffer(device, results);
-    SDL_ReleaseGPUTexture(device, texture);
+    SDL_UnmapGPUTransferBuffer(device, tbo);
+    SDL_ReleaseGPUTransferBuffer(device, tbo);
+    SDL_ReleaseGPUTexture(device, texture1);
     SDL_ReleaseGPUTexture(device, texture2);
+    SDL_ReleaseGPUTexture(device, texture3);
     SDL_ReleaseGPUBuffer(device, spheres);
     SDL_ReleaseGPUComputePipeline(device, pipeline);
+    SDL_ReleaseWindowFromGPUDevice(device, window);
     SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(window);
     SDL_OpenURL(IMAGE);
     SDL_Quit();
     return EXIT_SUCCESS;

@@ -4,8 +4,9 @@
 #define THREADS 256
 #define WIDTH 960.0f
 #define HEIGHT 540.0f
-#define SAMPLES 50
-#define BATCHES 10
+#define SAMPLES 100
+#define BATCHES 50
+#define DELAY 200
 #define DEPTH 20
 #define FOV 20
 #define SOURCE vec3(13.0f, 2.0f, 3.0f)

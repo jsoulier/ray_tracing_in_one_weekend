@@ -40,7 +40,8 @@ layout(set = 0, binding = 0) readonly buffer spheres_t
 {
     sphere_t spheres[];
 };
-layout(set = 1, binding = 0, rgba32f) uniform image2D image;
+layout(set = 1, binding = 0, rgba32f) uniform image2D image1;
+layout(set = 1, binding = 1, rgba32f) uniform image2D image2;
 layout(set = 2, binding = 0) uniform num_spheres_t
 {
     uint num_spheres;
@@ -146,7 +147,7 @@ bool get_bounce(
 
 void main()
 {
-    const uvec2 size = imageSize(image);
+    const uvec2 size = imageSize(image1);
     const uvec2 id = gl_GlobalInvocationID.xy;
     if (id.x >= size.x || id.y >= size.y)
     {
@@ -171,7 +172,8 @@ void main()
         pixel_v / 2.0f;
     vec3 colour = vec3(0.0f);
     const uint samples = SAMPLES / BATCHES;
-    for (uint count = batch * samples; count < (batch + 1) * samples; count++)
+    const uint start = batch * samples;
+    for (uint count = start; count < start + samples; count++)
     {
         const vec2 offset = random(id, count, 0).xy - 0.5f;
         const vec3 target = pixel_0 +
@@ -226,11 +228,13 @@ void main()
     }
     if (bool(batch))
     {
-        colour += imageLoad(image, ivec2(id.xy)).xyz;
+        colour += imageLoad(image1, ivec2(id.xy)).xyz;
     }
+    const vec3 curr = sqrt(colour / ((batch + 1) * samples));
     if (batch == BATCHES - 1)
     {
         colour = sqrt(colour / SAMPLES);
     }
-    imageStore(image, ivec2(id.xy), vec4(colour, 1.0f));
+    imageStore(image1, ivec2(id.xy), vec4(colour, 1.0f));
+    imageStore(image2, ivec2(id.xy), vec4(curr, 1.0f));
 }
