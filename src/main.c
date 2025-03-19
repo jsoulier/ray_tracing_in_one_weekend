@@ -284,6 +284,10 @@ int main(
             SDL_Log("Failed to acquire swapchain texture: %s", SDL_GetError());
             continue;
         }
+        if (!swapchain)
+        {
+            continue;
+        }
         SDL_GPUBlitInfo blit = {0};
         blit.source.texture = texture2;
         blit.source.w = WIDTH;
