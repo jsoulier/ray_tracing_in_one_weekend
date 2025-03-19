@@ -195,21 +195,21 @@ int main(
         SDL_Log("Failed to load compute pipeline:  %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUComputePipelineCreateInfo gpci = {0};
-    gpci.code = code;
-    gpci.code_size = size;
-    gpci.threadcount_x = THREADS;
-    gpci.threadcount_y = 1;
-    gpci.threadcount_z = 1;
-    gpci.num_uniform_buffers = 2;
-    gpci.num_samplers = 0;
-    gpci.num_readwrite_storage_buffers = 0;
-    gpci.num_readonly_storage_buffers = 1;
-    gpci.num_readwrite_storage_textures = 2;
-    gpci.num_readonly_storage_textures = 0;
-    gpci.format = SDL_GPU_SHADERFORMAT_SPIRV;
-    gpci.entrypoint = "main";
-    SDL_GPUComputePipeline* pipeline = SDL_CreateGPUComputePipeline(device, &gpci);
+    SDL_GPUComputePipelineCreateInfo cpci = {0};
+    cpci.code = code;
+    cpci.code_size = size;
+    cpci.threadcount_x = THREADS;
+    cpci.threadcount_y = 1;
+    cpci.threadcount_z = 1;
+    cpci.num_uniform_buffers = 2;
+    cpci.num_samplers = 0;
+    cpci.num_readwrite_storage_buffers = 0;
+    cpci.num_readonly_storage_buffers = 1;
+    cpci.num_readwrite_storage_textures = 2;
+    cpci.num_readonly_storage_textures = 0;
+    cpci.format = SDL_GPU_SHADERFORMAT_SPIRV;
+    cpci.entrypoint = "main";
+    SDL_GPUComputePipeline* pipeline = SDL_CreateGPUComputePipeline(device, &cpci);
     if (!pipeline)
     {
         SDL_Log("Failed to load compute pipeline");
