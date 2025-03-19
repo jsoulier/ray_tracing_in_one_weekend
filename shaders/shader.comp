@@ -3,13 +3,13 @@
 #include "config.h"
 #include "random.glsl"
 
-struct t_ray
+struct ray_t
 {
     vec3 origin;
     vec3 direction;
 };
 
-struct t_material
+struct material_t
 {
     vec3 albedo;
     uint type;
@@ -19,39 +19,43 @@ struct t_material
     uint padding2;
 };
 
-struct t_hit
+struct hit_t
 {
     float offset;
     vec3 position;
     vec3 normal;
     bool face;
-    t_material material;
+    material_t material;
 };
 
-struct t_sphere
+struct sphere_t
 {
     vec3 position;
     float radius;
-    t_material material;
+    material_t material;
 };
 
 layout(local_size_x = THREADS) in;
-layout(set = 0, binding = 0) readonly buffer t_spheres
+layout(set = 0, binding = 0) readonly buffer spheres_t
 {
-    t_sphere b_spheres[];
+    sphere_t spheres[];
 };
-layout(set = 1, binding = 0, rgba32f) writeonly uniform image2D i_image;
-layout(set = 2, binding = 0) uniform t_num_spheres
+layout(set = 1, binding = 0, rgba32f) uniform image2D image;
+layout(set = 2, binding = 0) uniform num_spheres_t
 {
-    uint u_num_spheres;
+    uint num_spheres;
+};
+layout(set = 2, binding = 1) uniform batch_t
+{
+    uint batch;
 };
 
 bool hit_sphere(
-    const in t_sphere sphere,
-    const in t_ray ray,
+    const in sphere_t sphere,
+    const in ray_t ray,
     const in float near,
     const in float far,
-    out t_hit hit)
+    out hit_t hit)
 {
     const vec3 offset = sphere.position - ray.origin;
     const float a = dot(ray.direction, ray.direction);
@@ -84,8 +88,8 @@ bool hit_sphere(
 }
 
 bool get_bounce(
-    const in t_ray ray,
-    const in t_hit hit,
+    const in ray_t ray,
+    const in hit_t hit,
     const in uvec2 id,
     const in uint count,
     const in uint depth,
@@ -95,13 +99,13 @@ bool get_bounce(
     switch (hit.material.type)
     {
     case LAMBERTIAN:
-        bounce = random3(id, count, depth) + hit.normal;
+        bounce = random(id, count, depth).xyz + hit.normal;
         bounce = dot(bounce, bounce) < 0.001f ? hit.normal : bounce;
         colour = hit.material.albedo;
         return true;
     case METAL:
         bounce = normalize(reflect(ray.direction, hit.normal));
-        bounce += random3(id, count, depth) * hit.material.fuzz;
+        bounce += random(id, count, depth).xyz * hit.material.fuzz;
         colour = hit.material.albedo;
         return dot(bounce, hit.normal) > 0.0f;
     case DIAELECTRIC:
@@ -142,7 +146,7 @@ bool get_bounce(
 
 void main()
 {
-    const uvec2 size = imageSize(i_image);
+    const uvec2 size = imageSize(image);
     const uvec2 id = gl_GlobalInvocationID.xy;
     if (id.x >= size.x || id.y >= size.y)
     {
@@ -166,16 +170,17 @@ void main()
         pixel_u / 2.0f +
         pixel_v / 2.0f;
     vec3 colour = vec3(0.0f);
-    for (uint count = 0; count < SAMPLES; count++)
+    const uint samples = SAMPLES / BATCHES;
+    for (uint count = batch * samples; count < (batch + 1) * samples; count++)
     {
-        const vec2 offset = random2(id, count) - 0.5f;
+        const vec2 offset = random(id, count, 0).xy - 0.5f;
         const vec3 target = pixel_0 +
             (id.x + offset.x) * pixel_u +
             (id.y + offset.y) * pixel_v;
-        t_ray ray;
+        ray_t ray;
         for (uint i = 0; i < 10; i++)
         {
-            ray.origin.xy = random2(id, count, i);
+            ray.origin.xy = random(id, count, i).xy;
             if (dot(ray.origin.xy, ray.origin.xy) < 1.0f)
             {
                 break;
@@ -188,13 +193,13 @@ void main()
         vec3 attenuation = vec3(1.0f);
         for (uint depth = 0; depth < DEPTH; depth++)
         {
-            t_hit hit;
+            hit_t hit;
             float near = 0.001f;
             float far = 1000000.0f;
             bool status = false;
-            for (uint i = 0; i < u_num_spheres; i++)
+            for (uint i = 0; i < num_spheres; i++)
             {
-                if (hit_sphere(b_spheres[i], ray, near, far, hit))
+                if (hit_sphere(spheres[i], ray, near, far, hit))
                 {
                     status = true;
                     far = hit.offset;
@@ -214,11 +219,18 @@ void main()
                 attenuation = vec3(0.0f);
                 break;
             }
-            ray = t_ray(hit.position, bounce);
+            ray = ray_t(hit.position, bounce);
             attenuation *= colour;
         }
         colour += attenuation;
     }
-    colour = sqrt(colour / SAMPLES);
-    imageStore(i_image, ivec2(id.xy), vec4(colour, 1.0f));
+    if (bool(batch))
+    {
+        colour += imageLoad(image, ivec2(id.xy)).xyz;
+    }
+    if (batch == BATCHES - 1)
+    {
+        colour = sqrt(colour / SAMPLES);
+    }
+    imageStore(image, ivec2(id.xy), vec4(colour, 1.0f));
 }

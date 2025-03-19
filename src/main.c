@@ -189,7 +189,7 @@ int main(
     gpci.threadcount_x = THREADS;
     gpci.threadcount_y = 1;
     gpci.threadcount_z = 1;
-    gpci.num_uniform_buffers = 1;
+    gpci.num_uniform_buffers = 2;
     gpci.num_samplers = 0;
     gpci.num_readwrite_storage_buffers = 0;
     gpci.num_readonly_storage_buffers = 1;
@@ -211,9 +211,10 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_GPUTextureCreateInfo tci = {0};
-    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE;
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE |
+        SDL_GPU_TEXTUREUSAGE_SAMPLER;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
-    tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    tci.format = SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT;
     tci.width = WIDTH;
     tci.height = HEIGHT;
     tci.num_levels = 1;
@@ -224,14 +225,6 @@ int main(
         SDL_Log("Failed to create texture: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUStorageTextureReadWriteBinding stb = {0};
-    stb.texture = texture;
-    SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
-    if (!pass)
-    {
-        SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
     uint32_t num_spheres;
     SDL_GPUBuffer* spheres = create_spheres(device, &num_spheres);
     if (!spheres)
@@ -239,11 +232,23 @@ int main(
         SDL_Log("Failed to create spheres");
         return EXIT_FAILURE;
     }
-    SDL_BindGPUComputePipeline(pass, pipeline);
-    SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
-    SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
-    SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
-    SDL_EndGPUComputePass(pass);
+    for (uint32_t batch = 0; batch < BATCHES; batch++)
+    {
+        SDL_GPUStorageTextureReadWriteBinding stb = {0};
+        stb.texture = texture;
+        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &stb, 1, NULL, 0);
+        if (!pass)
+        {
+            SDL_Log("Failed to begin compute pass: %s", SDL_GetError());
+            return EXIT_FAILURE;
+        }
+        SDL_BindGPUComputePipeline(pass, pipeline);
+        SDL_BindGPUComputeStorageBuffers(pass, 0, &spheres, 1);
+        SDL_PushGPUComputeUniformData(commands, 0, &num_spheres, sizeof(num_spheres));
+        SDL_PushGPUComputeUniformData(commands, 1, &batch, sizeof(batch));
+        SDL_DispatchGPUCompute(pass, (WIDTH + THREADS - 1) / THREADS, HEIGHT, 1);
+        SDL_EndGPUComputePass(pass);
+    }
     SDL_GPUTransferBufferCreateInfo tbci = {0};
     tbci.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
     tbci.size = WIDTH * HEIGHT * 4;
@@ -253,6 +258,22 @@ int main(
         SDL_Log("Failed to create transfer buffer: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET;
+    tci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    SDL_GPUTexture* texture2 = SDL_CreateGPUTexture(device, &tci);
+    if (!texture2)
+    {
+        SDL_Log("Failed to create texture: %s", SDL_GetError());
+        return EXIT_FAILURE;
+    }
+    SDL_GPUBlitInfo bi = {0};
+    bi.source.texture = texture;
+    bi.source.w = WIDTH;
+    bi.source.h = HEIGHT;
+    bi.destination.texture = texture2;
+    bi.destination.w = WIDTH;
+    bi.destination.h = HEIGHT;
+    SDL_BlitGPUTexture(commands, &bi);
     SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);
     if (!copy)
     {
@@ -261,7 +282,7 @@ int main(
     }
     SDL_GPUTextureRegion src = {0};
     SDL_GPUTextureTransferInfo dst = {0};
-    src.texture = texture;
+    src.texture = texture2;
     src.w = WIDTH;
     src.h = HEIGHT;
     src.d = 1;
@@ -293,6 +314,7 @@ int main(
     SDL_UnmapGPUTransferBuffer(device, results);
     SDL_ReleaseGPUTransferBuffer(device, results);
     SDL_ReleaseGPUTexture(device, texture);
+    SDL_ReleaseGPUTexture(device, texture2);
     SDL_ReleaseGPUBuffer(device, spheres);
     SDL_ReleaseGPUComputePipeline(device, pipeline);
     SDL_DestroyGPUDevice(device);
