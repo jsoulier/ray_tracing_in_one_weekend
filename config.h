@@ -4,7 +4,7 @@
 #define THREADS 256
 #define WIDTH 960.0f
 #define HEIGHT 540.0f
-#define SAMPLES 100
+#define SAMPLES 500
 #define BATCHES 50
 #define DELAY 200
 #define DEPTH 20

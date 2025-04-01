@@ -5,7 +5,7 @@
             "name": "win32",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bin/sdl3_rtiow.exe",
+            "program": "${workspaceFolder}/build/bin/rtiow.exe",
             "cwd": "${workspaceFolder}/build/bin",
             "preLaunchTask": "CMake: build"
         },
@@ -13,7 +13,7 @@
             "name": "linux",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bin/sdl3_rtiow",
+            "program": "${workspaceFolder}/build/bin/rtiow",
             "cwd": "${workspaceFolder}/build/bin",
             "preLaunchTask": "CMake: build"
         },
