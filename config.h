@@ -17,7 +17,6 @@
 #define IMAGE "image.bmp"
 #define SKY vec3(0.5f, 0.7f, 1.0f)
 #define HORIZON vec3(1.0f, 1.0f, 1.0f)
-
 #define LAMBERTIAN 0
 #define METAL 1
 #define DIAELECTRIC 2

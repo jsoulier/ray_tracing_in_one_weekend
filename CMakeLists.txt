@@ -16,7 +16,7 @@ set_target_properties(rtiow PROPERTIES C_STANDARD 11)
 target_link_libraries(rtiow PUBLIC SDL3::SDL3)
 add_custom_command(
     OUTPUT ${BINARY_DIR}/shader.comp
-    COMMAND glslc shader.comp -o ${BINARY_DIR}/shader.comp -I src
+    COMMAND glslc shader.comp -o ${BINARY_DIR}/shader.comp
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     DEPENDS shader.comp config.h random.glsl
     BYPRODUCTS ${BINARY_DIR}/shader.comp
