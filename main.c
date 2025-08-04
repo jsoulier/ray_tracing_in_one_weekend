@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include "config.h"
+#include "shader.h"
 
 static SDL_GPUBuffer* create_spheres(
     SDL_GPUDevice* device,
@@ -176,7 +177,13 @@ int main(
         SDL_Log("Failed to create window: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
+#if SDL_PLATFORM_WIN32
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL, true, NULL);
+#elif SDL_PLATFORM_LINUX
     SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+#elif SDL_PLATFORM_APPLE
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, true, NULL);
+#endif
     if (!device)
     {
         SDL_Log("Failed to create device: %s", SDL_GetError());
@@ -195,21 +202,7 @@ int main(
         SDL_Log("Failed to load compute pipeline:  %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_GPUComputePipelineCreateInfo cpci = {0};
-    cpci.code = code;
-    cpci.code_size = size;
-    cpci.threadcount_x = THREADS;
-    cpci.threadcount_y = 1;
-    cpci.threadcount_z = 1;
-    cpci.num_uniform_buffers = 2;
-    cpci.num_samplers = 0;
-    cpci.num_readwrite_storage_buffers = 0;
-    cpci.num_readonly_storage_buffers = 1;
-    cpci.num_readwrite_storage_textures = 2;
-    cpci.num_readonly_storage_textures = 0;
-    cpci.format = SDL_GPU_SHADERFORMAT_SPIRV;
-    cpci.entrypoint = "main";
-    SDL_GPUComputePipeline* pipeline = SDL_CreateGPUComputePipeline(device, &cpci);
+    SDL_GPUComputePipeline* pipeline = load_compute_pipeline(device, "shader.comp");
     if (!pipeline)
     {
         SDL_Log("Failed to load compute pipeline");

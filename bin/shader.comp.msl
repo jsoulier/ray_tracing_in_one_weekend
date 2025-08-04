@@ -1,0 +1,367 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+template <typename ImageT>
+void spvImageFence(ImageT img) { img.fence(); }
+
+struct material_t
+{
+    float3 albedo;
+    uint type;
+    float fuzz;
+    float refraction;
+    uint padding1;
+    uint padding2;
+};
+
+struct sphere_t
+{
+    float3 position;
+    float radius;
+    material_t material;
+};
+
+struct ray_t
+{
+    float3 origin;
+    float3 direction;
+};
+
+struct hit_t
+{
+    float offset;
+    float3 position;
+    float3 normal;
+    short face;
+    material_t material;
+};
+
+struct batch_t
+{
+    uint batch;
+};
+
+struct num_spheres_t
+{
+    uint num_spheres;
+};
+
+struct material_t_1
+{
+    packed_float3 albedo;
+    uint type;
+    float fuzz;
+    float refraction;
+    uint padding1;
+    uint padding2;
+};
+
+struct sphere_t_1
+{
+    packed_float3 position;
+    float radius;
+    material_t_1 material;
+};
+
+struct spheres_t
+{
+    sphere_t_1 spheres[1];
+};
+
+constant uint3 gl_WorkGroupSize [[maybe_unused]] = uint3(256u, 1u, 1u);
+
+static inline __attribute__((always_inline))
+uint hash(thread uint& x)
+{
+    x += (x << 10u);
+    x ^= (x >> 6u);
+    x += (x << 3u);
+    x ^= (x >> 11u);
+    x += (x << 15u);
+    return x;
+}
+
+static inline __attribute__((always_inline))
+uint hash(thread const uint4& v)
+{
+    uint param = v.y;
+    uint _126 = hash(param);
+    uint param_1 = v.z;
+    uint _132 = hash(param_1);
+    uint param_2 = v.w;
+    uint _137 = hash(param_2);
+    uint param_3 = ((v.x ^ _126) ^ _132) ^ _137;
+    uint _140 = hash(param_3);
+    return _140;
+}
+
+static inline __attribute__((always_inline))
+float floatConstruct(thread uint& m)
+{
+    m &= 8388607u;
+    m |= 1065353216u;
+    float f = as_type<float>(m);
+    return f - 1.0;
+}
+
+static inline __attribute__((always_inline))
+float random(thread const float4& v)
+{
+    uint4 param = as_type<uint4>(v);
+    uint param_1 = hash(param);
+    float _170 = floatConstruct(param_1);
+    return _170;
+}
+
+static inline __attribute__((always_inline))
+float random(thread const float4& v, thread const float& a, thread const float& b)
+{
+    float4 param = v;
+    return a + ((b - a) * random(param));
+}
+
+static inline __attribute__((always_inline))
+float4 random(uint2 id, uint count, uint depth)
+{
+    float4 param = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 17.0);
+    float param_1 = -1.0;
+    float param_2 = 1.0;
+    float4 param_3 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 73.0);
+    float param_4 = -1.0;
+    float param_5 = 1.0;
+    float4 param_6 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 97.0);
+    float param_7 = -1.0;
+    float param_8 = 1.0;
+    float4 param_9 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 57.0);
+    float param_10 = -1.0;
+    float param_11 = 1.0;
+    return float4(random(param, param_1, param_2), random(param_3, param_4, param_5), random(param_6, param_7, param_8), random(param_9, param_10, param_11));
+}
+
+static inline __attribute__((always_inline))
+bool hit_sphere(sphere_t sphere, ray_t ray, float near, float far, thread hit_t& hit)
+{
+    float3 offset = sphere.position - ray.origin;
+    float a = dot(ray.direction, ray.direction);
+    float b = dot(ray.direction, offset);
+    float c = dot(offset, offset) - powr(sphere.radius, 2.0);
+    float discriminant = (b * b) - (a * c);
+    if (discriminant < 0.0)
+    {
+        return false;
+    }
+    float root = (b - sqrt(discriminant)) / a;
+    if ((root <= near) || (far <= root))
+    {
+        root = (b + sqrt(discriminant)) / a;
+        if ((root <= near) || (far <= root))
+        {
+            return false;
+        }
+    }
+    hit.offset = root;
+    hit.position = ray.origin + (ray.direction * root);
+    hit.normal = (hit.position - sphere.position) / float3(sphere.radius);
+    hit.face = short(dot(ray.direction, hit.normal) < 0.0);
+    if (!bool(hit.face))
+    {
+        hit.normal = -hit.normal;
+    }
+    hit.material = sphere.material;
+    return true;
+}
+
+static inline __attribute__((always_inline))
+uint hash(thread const uint2& v)
+{
+    uint param = v.y;
+    uint _115 = hash(param);
+    uint param_1 = v.x ^ _115;
+    uint _118 = hash(param_1);
+    return _118;
+}
+
+static inline __attribute__((always_inline))
+float random(thread const float2& v)
+{
+    uint2 param = as_type<uint2>(v);
+    uint param_1 = hash(param);
+    float _162 = floatConstruct(param_1);
+    return _162;
+}
+
+static inline __attribute__((always_inline))
+bool get_bounce(ray_t ray, hit_t hit, uint2 id, uint count, uint depth, thread float3& bounce, thread float3& colour)
+{
+    switch (hit.material.type)
+    {
+        case 0u:
+        {
+            bounce = random(id, count, depth).xyz + hit.normal;
+            float3 _365;
+            if (dot(bounce, bounce) < 0.001000000047497451305389404296875)
+            {
+                _365 = hit.normal;
+            }
+            else
+            {
+                _365 = bounce;
+            }
+            bounce = _365;
+            colour = hit.material.albedo;
+            return true;
+        }
+        case 1u:
+        {
+            bounce = fast::normalize(reflect(ray.direction, hit.normal));
+            bounce += (random(id, count, depth).xyz * hit.material.fuzz);
+            colour = hit.material.albedo;
+            return dot(bounce, hit.normal) > 0.0;
+        }
+        case 2u:
+        {
+            colour = float3(1.0);
+            float m = hit.material.refraction;
+            float ri;
+            if (hit.face)
+            {
+                ri = 1.0 / m;
+            }
+            else
+            {
+                ri = m;
+            }
+            float3 vector = fast::normalize(ray.direction);
+            float c = fast::min(dot(-vector, hit.normal), 1.0);
+            float s = sqrt(1.0 - powr(c, 2.0));
+            float r = powr((1.0 - m) / (1.0 + m), 2.0);
+            if ((ri * s) > 1.0)
+            {
+                bounce = reflect(vector, hit.normal);
+                return true;
+            }
+            float reflectance = r + ((1.0 - r) * powr(1.0 - c, 5.0));
+            float2 param = (float2(id) * float2(960.0, 540.0)) + float2(float(depth), float(count));
+            if (reflectance > random(param))
+            {
+                bounce = reflect(vector, hit.normal);
+            }
+            else
+            {
+                bounce = refract(vector, hit.normal, ri);
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+kernel void main0(constant num_spheres_t& _683 [[buffer(0)]], constant batch_t& _560 [[buffer(1)]], const device spheres_t& _692 [[buffer(2)]], texture2d<float, access::read_write> image1 [[texture(0)]], texture2d<float, access::write> image2 [[texture(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
+{
+    uint2 size = uint2(int2(image1.get_width(), image1.get_height()));
+    uint2 id = gl_GlobalInvocationID.xy;
+    bool _487 = id.x >= size.x;
+    bool _496;
+    if (!_487)
+    {
+        _496 = id.y >= size.y;
+    }
+    else
+    {
+        _496 = _487;
+    }
+    if (_496)
+    {
+        return;
+    }
+    float viewport_w = (3.5265395641326904296875 * float(size.x)) / float(size.y);
+    float3 viewport_u = float3(0.29408586025238037109375, 0.0, -0.955779016017913818359375) * viewport_w;
+    float3 pixel_u = viewport_u / float3(float(size.x));
+    float3 pixel_v = float3(0.4903490543365478515625, -3.48902225494384765625, 0.15087664127349853515625) / float3(float(size.y));
+    float3 pixel_0 = (((float3(3.543891429901123046875, 0.54521405696868896484375, 0.09042812883853912353515625) - (viewport_u / float3(2.0))) - float3(0.24517452716827392578125, -1.744511127471923828125, 0.075438320636749267578125)) + (pixel_u / float3(2.0))) + (pixel_v / float3(2.0));
+    float3 colour = float3(0.0);
+    uint start = _560.batch * 10u;
+    ray_t ray;
+    hit_t hit;
+    sphere_t arg;
+    hit_t param;
+    float3 param_1;
+    float3 param_2;
+    for (uint count = start; count < (start + 10u); count++)
+    {
+        float2 offset = random(id, count, 0u).xy - float2(0.5);
+        float3 target = (pixel_0 + (pixel_u * (float(id.x) + offset.x))) + (pixel_v * (float(id.y) + offset.y));
+        for (uint i = 0u; i < 10u; i++)
+        {
+            float2 _618 = random(id, count, i).xy;
+            ray.origin.x = _618.x;
+            ray.origin.y = _618.y;
+            if (dot(ray.origin.xy, ray.origin.xy) < 1.0)
+            {
+                break;
+            }
+        }
+        ray.origin = (float3(13.0, 2.0, 3.0) + ((float3(0.29408586025238037109375, 0.0, -0.955779016017913818359375) * ray.origin.x) * 0.052360355854034423828125)) + ((float3(-0.1390453875064849853515625, 0.98936140537261962890625, -0.0427831970155239105224609375) * ray.origin.y) * 0.052360355854034423828125);
+        ray.direction = target - ray.origin;
+        float3 attenuation = float3(1.0);
+        for (uint depth = 0u; depth < 20u; depth++)
+        {
+            float near = 0.001000000047497451305389404296875;
+            float far = 1000000.0;
+            bool status = false;
+            for (uint i_1 = 0u; i_1 < _683.num_spheres; i_1++)
+            {
+                arg.position = float3(_692.spheres[i_1].position);
+                arg.radius = _692.spheres[i_1].radius;
+                arg.material.albedo = float3(_692.spheres[i_1].material.albedo);
+                arg.material.type = _692.spheres[i_1].material.type;
+                arg.material.fuzz = _692.spheres[i_1].material.fuzz;
+                arg.material.refraction = _692.spheres[i_1].material.refraction;
+                arg.material.padding1 = _692.spheres[i_1].material.padding1;
+                arg.material.padding2 = _692.spheres[i_1].material.padding2;
+                bool _724 = hit_sphere(arg, ray, near, far, param);
+                hit = param;
+                if (_724)
+                {
+                    status = true;
+                    far = hit.offset;
+                }
+            }
+            if (!status)
+            {
+                float y = (fast::normalize(ray.direction).y * 0.5) + 0.5;
+                float3 colour_1 = (float3(1.0) * (1.0 - y)) + (float3(0.5, 0.699999988079071044921875, 1.0) * y);
+                attenuation *= colour_1;
+                break;
+            }
+            bool _765 = get_bounce(ray, hit, id, count, depth, param_1, param_2);
+            float3 bounce = param_1;
+            float3 colour_2 = param_2;
+            if (!_765)
+            {
+                attenuation = float3(0.0);
+                break;
+            }
+            ray = ray_t{ hit.position, bounce };
+            attenuation *= colour_2;
+        }
+        colour += attenuation;
+    }
+    if (_560.batch != 0u)
+    {
+        spvImageFence(image1);
+        colour += image1.read(uint2(int2(id))).xyz;
+    }
+    float3 curr = sqrt(colour / float3(float((_560.batch + 1u) * 10u)));
+    if (_560.batch == 49u)
+    {
+        colour = sqrt(colour / float3(500.0));
+    }
+    image1.write(float4(colour, 1.0), uint2(int2(id)));
+    image2.write(float4(curr, 1.0), uint2(int2(id)));
+}
+
