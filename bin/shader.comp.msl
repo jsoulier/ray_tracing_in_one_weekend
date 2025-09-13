@@ -5,363 +5,578 @@
 
 using namespace metal;
 
+// Implementation of the GLSL radians() function
+template<typename T>
+inline T radians(T d)
+{
+    return d * T(0.01745329251);
+}
+
 template <typename ImageT>
 void spvImageFence(ImageT img) { img.fence(); }
 
-struct material_t
+struct type_UniformBuffer
 {
-    float3 albedo;
-    uint type;
-    float fuzz;
-    float refraction;
-    uint padding1;
-    uint padding2;
+    uint NumSpheres;
 };
 
-struct sphere_t
+struct type_UniformBuffer_1
 {
-    float3 position;
-    float radius;
-    material_t material;
+    uint Batch;
 };
 
-struct ray_t
+struct Material
 {
-    float3 origin;
-    float3 direction;
+    packed_float3 Albedo;
+    uint Padding1;
+    uint Type;
+    float Fuzz;
+    float Refraction;
+    uint Padding2;
 };
 
-struct hit_t
+struct Sphere
 {
-    float offset;
-    float3 position;
-    float3 normal;
-    short face;
-    material_t material;
+    packed_float3 Position;
+    float Radius;
+    Material Material;
 };
 
-struct batch_t
+struct type_StructuredBuffer_Sphere
 {
-    uint batch;
+    Sphere _m0[1];
 };
 
-struct num_spheres_t
-{
-    uint num_spheres;
-};
+constant uint _73 = {};
+constant float _74 = {};
+constant float3 _75 = {};
+constant bool _76 = {};
+constant float _84 = {};
+constant float3 _85 = {};
 
-struct material_t_1
+kernel void main0(constant type_UniformBuffer& UniformBuffer [[buffer(0)]], constant type_UniformBuffer_1& UniformBuffer_1 [[buffer(1)]], const device type_StructuredBuffer_Sphere& spheres [[buffer(2)]], texture2d<float, access::read_write> image1 [[texture(0)]], texture2d<float, access::write> image2 [[texture(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
 {
-    packed_float3 albedo;
-    uint type;
-    float fuzz;
-    float refraction;
-    uint padding1;
-    uint padding2;
-};
-
-struct sphere_t_1
-{
-    packed_float3 position;
-    float radius;
-    material_t_1 material;
-};
-
-struct spheres_t
-{
-    sphere_t_1 spheres[1];
-};
-
-constant uint3 gl_WorkGroupSize [[maybe_unused]] = uint3(256u, 1u, 1u);
-
-static inline __attribute__((always_inline))
-uint hash(thread uint& x)
-{
-    x += (x << 10u);
-    x ^= (x >> 6u);
-    x += (x << 3u);
-    x ^= (x >> 11u);
-    x += (x << 15u);
-    return x;
-}
-
-static inline __attribute__((always_inline))
-uint hash(thread const uint4& v)
-{
-    uint param = v.y;
-    uint _126 = hash(param);
-    uint param_1 = v.z;
-    uint _132 = hash(param_1);
-    uint param_2 = v.w;
-    uint _137 = hash(param_2);
-    uint param_3 = ((v.x ^ _126) ^ _132) ^ _137;
-    uint _140 = hash(param_3);
-    return _140;
-}
-
-static inline __attribute__((always_inline))
-float floatConstruct(thread uint& m)
-{
-    m &= 8388607u;
-    m |= 1065353216u;
-    float f = as_type<float>(m);
-    return f - 1.0;
-}
-
-static inline __attribute__((always_inline))
-float random(thread const float4& v)
-{
-    uint4 param = as_type<uint4>(v);
-    uint param_1 = hash(param);
-    float _170 = floatConstruct(param_1);
-    return _170;
-}
-
-static inline __attribute__((always_inline))
-float random(thread const float4& v, thread const float& a, thread const float& b)
-{
-    float4 param = v;
-    return a + ((b - a) * random(param));
-}
-
-static inline __attribute__((always_inline))
-float4 random(uint2 id, uint count, uint depth)
-{
-    float4 param = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 17.0);
-    float param_1 = -1.0;
-    float param_2 = 1.0;
-    float4 param_3 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 73.0);
-    float param_4 = -1.0;
-    float param_5 = 1.0;
-    float4 param_6 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 97.0);
-    float param_7 = -1.0;
-    float param_8 = 1.0;
-    float4 param_9 = float4(float(id.x), float(id.y), float(depth), float(count + 1u) * 57.0);
-    float param_10 = -1.0;
-    float param_11 = 1.0;
-    return float4(random(param, param_1, param_2), random(param_3, param_4, param_5), random(param_6, param_7, param_8), random(param_9, param_10, param_11));
-}
-
-static inline __attribute__((always_inline))
-bool hit_sphere(sphere_t sphere, ray_t ray, float near, float far, thread hit_t& hit)
-{
-    float3 offset = sphere.position - ray.origin;
-    float a = dot(ray.direction, ray.direction);
-    float b = dot(ray.direction, offset);
-    float c = dot(offset, offset) - powr(sphere.radius, 2.0);
-    float discriminant = (b * b) - (a * c);
-    if (discriminant < 0.0)
+    do
     {
-        return false;
-    }
-    float root = (b - sqrt(discriminant)) / a;
-    if ((root <= near) || (far <= root))
-    {
-        root = (b + sqrt(discriminant)) / a;
-        if ((root <= near) || (far <= root))
+        uint2 _92 = uint2(image1.get_width(), image1.get_height());
+        uint _95 = _92.x;
+        bool _103;
+        if (!(gl_GlobalInvocationID.x >= _95))
         {
-            return false;
+            _103 = gl_GlobalInvocationID.y >= _92.y;
         }
-    }
-    hit.offset = root;
-    hit.position = ray.origin + (ray.direction * root);
-    hit.normal = (hit.position - sphere.position) / float3(sphere.radius);
-    hit.face = short(dot(ray.direction, hit.normal) < 0.0);
-    if (!bool(hit.face))
-    {
-        hit.normal = -hit.normal;
-    }
-    hit.material = sphere.material;
-    return true;
-}
-
-static inline __attribute__((always_inline))
-uint hash(thread const uint2& v)
-{
-    uint param = v.y;
-    uint _115 = hash(param);
-    uint param_1 = v.x ^ _115;
-    uint _118 = hash(param_1);
-    return _118;
-}
-
-static inline __attribute__((always_inline))
-float random(thread const float2& v)
-{
-    uint2 param = as_type<uint2>(v);
-    uint param_1 = hash(param);
-    float _162 = floatConstruct(param_1);
-    return _162;
-}
-
-static inline __attribute__((always_inline))
-bool get_bounce(ray_t ray, hit_t hit, uint2 id, uint count, uint depth, thread float3& bounce, thread float3& colour)
-{
-    switch (hit.material.type)
-    {
-        case 0u:
+        else
         {
-            bounce = random(id, count, depth).xyz + hit.normal;
-            float3 _365;
-            if (dot(bounce, bounce) < 0.001000000047497451305389404296875)
-            {
-                _365 = hit.normal;
-            }
-            else
-            {
-                _365 = bounce;
-            }
-            bounce = _365;
-            colour = hit.material.albedo;
-            return true;
+            _103 = true;
         }
-        case 1u:
+        if (_103)
         {
-            bounce = fast::normalize(reflect(ray.direction, hit.normal));
-            bounce += (random(id, count, depth).xyz * hit.material.fuzz);
-            colour = hit.material.albedo;
-            return dot(bounce, hit.normal) > 0.0;
+            break;
         }
-        case 2u:
+        float3 _106 = fast::normalize(float3(13.0, 2.0, 4.0));
+        float3 _108 = fast::normalize(cross(float3(0.0, 1.0, 0.0), _106));
+        float3 _109 = cross(_106, _108);
+        float _112 = tan(radians(10.0)) * 20.0;
+        float _113 = float(_95);
+        float _116 = float(_92.y);
+        float _120 = 10.0 * tan(radians(0.300000011920928955078125));
+        float3 _121 = _108 * ((_112 * _113) / _116);
+        float3 _123 = (-_109) * _112;
+        float3 _125 = _121 / float3(_113);
+        float3 _127 = _123 / float3(_116);
+        float3 _137 = ((((float3(13.0, 2.0, 3.0) - (_106 * 10.0)) - (_121 * float3(0.5))) - (_123 * float3(0.5))) + (_125 * float3(0.5))) + (_127 * float3(0.5));
+        uint _140 = UniformBuffer_1.Batch * 10u;
+        float3 _142;
+        float3 _145;
+        float3 _147;
+        float3 _153;
+        float3 _155;
+        float3 _159;
+        float3 _167;
+        _142 = _85;
+        _145 = _75;
+        _147 = _75;
+        _153 = _75;
+        _155 = _75;
+        _159 = _75;
+        _167 = float3(0.0);
+        float3 _168;
+        uint _170;
+        float3 _143;
+        float3 _146;
+        float3 _148;
+        bool _150;
+        float _152;
+        float3 _154;
+        float3 _156;
+        bool _158;
+        float3 _160;
+        uint _162;
+        float _164;
+        float _166;
+        bool _149;
+        float _151;
+        bool _157;
+        uint _161;
+        float _163;
+        float _165;
+        for (uint _169 = _140; _169 < (_140 + 10u); _142 = _143, _145 = _146, _147 = _148, _149 = _150, _151 = _152, _153 = _154, _155 = _156, _157 = _158, _159 = _160, _161 = _162, _163 = _164, _165 = _166, _167 = _168, _169 = _170)
         {
-            colour = float3(1.0);
-            float m = hit.material.refraction;
-            float ri;
-            if (hit.face)
+            _170 = _169 + 1u;
+            uint _176 = _170 * 17u;
+            uint _178 = gl_GlobalInvocationID.y + (gl_GlobalInvocationID.y << 10u);
+            uint _180 = _178 ^ (_178 >> 6u);
+            uint _182 = _180 + (_180 << 3u);
+            uint _184 = _182 ^ (_182 >> 11u);
+            uint _187 = gl_GlobalInvocationID.x ^ (_184 + (_184 << 15u));
+            uint _189 = _176 + (_176 << 10u);
+            uint _191 = _189 ^ (_189 >> 6u);
+            uint _193 = _191 + (_191 << 3u);
+            uint _195 = _193 ^ (_193 >> 11u);
+            uint _197 = _195 + (_195 << 15u);
+            uint _198 = _187 ^ _197;
+            uint _200 = _198 + (_198 << 10u);
+            uint _202 = _200 ^ (_200 >> 6u);
+            uint _204 = _202 + (_202 << 3u);
+            uint _206 = _204 ^ (_204 >> 11u);
+            uint _213 = _170 * 73u;
+            uint _215 = _213 + (_213 << 10u);
+            uint _217 = _215 ^ (_215 >> 6u);
+            uint _219 = _217 + (_217 << 3u);
+            uint _221 = _219 ^ (_219 >> 11u);
+            uint _223 = _221 + (_221 << 15u);
+            uint _224 = _187 ^ _223;
+            uint _226 = _224 + (_224 << 10u);
+            uint _228 = _226 ^ (_226 >> 6u);
+            uint _230 = _228 + (_228 << 3u);
+            uint _232 = _230 ^ (_230 >> 11u);
+            float2 _243 = ((float4(as_type<float>(((_206 + (_206 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_232 + (_232 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84, _84) * 2.0) - float4(1.0)).xy - float2(0.5);
+            float3 _255;
+            _255 = _142;
+            float3 _256;
+            float3 _312;
+            uint _258 = 0u;
+            for (;;)
             {
-                ri = 1.0 / m;
-            }
-            else
-            {
-                ri = m;
-            }
-            float3 vector = fast::normalize(ray.direction);
-            float c = fast::min(dot(-vector, hit.normal), 1.0);
-            float s = sqrt(1.0 - powr(c, 2.0));
-            float r = powr((1.0 - m) / (1.0 + m), 2.0);
-            if ((ri * s) > 1.0)
-            {
-                bounce = reflect(vector, hit.normal);
-                return true;
-            }
-            float reflectance = r + ((1.0 - r) * powr(1.0 - c, 5.0));
-            float2 param = (float2(id) * float2(960.0, 540.0)) + float2(float(depth), float(count));
-            if (reflectance > random(param))
-            {
-                bounce = reflect(vector, hit.normal);
-            }
-            else
-            {
-                bounce = refract(vector, hit.normal, ri);
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
-kernel void main0(constant num_spheres_t& _683 [[buffer(0)]], constant batch_t& _560 [[buffer(1)]], const device spheres_t& _692 [[buffer(2)]], texture2d<float, access::read_write> image1 [[texture(0)]], texture2d<float, access::write> image2 [[texture(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
-{
-    uint2 size = uint2(int2(image1.get_width(), image1.get_height()));
-    uint2 id = gl_GlobalInvocationID.xy;
-    bool _487 = id.x >= size.x;
-    bool _496;
-    if (!_487)
-    {
-        _496 = id.y >= size.y;
-    }
-    else
-    {
-        _496 = _487;
-    }
-    if (_496)
-    {
-        return;
-    }
-    float viewport_w = (3.5265395641326904296875 * float(size.x)) / float(size.y);
-    float3 viewport_u = float3(0.29408586025238037109375, 0.0, -0.955779016017913818359375) * viewport_w;
-    float3 pixel_u = viewport_u / float3(float(size.x));
-    float3 pixel_v = float3(0.4903490543365478515625, -3.48902225494384765625, 0.15087664127349853515625) / float3(float(size.y));
-    float3 pixel_0 = (((float3(3.543891429901123046875, 0.54521405696868896484375, 0.09042812883853912353515625) - (viewport_u / float3(2.0))) - float3(0.24517452716827392578125, -1.744511127471923828125, 0.075438320636749267578125)) + (pixel_u / float3(2.0))) + (pixel_v / float3(2.0));
-    float3 colour = float3(0.0);
-    uint start = _560.batch * 10u;
-    ray_t ray;
-    hit_t hit;
-    sphere_t arg;
-    hit_t param;
-    float3 param_1;
-    float3 param_2;
-    for (uint count = start; count < (start + 10u); count++)
-    {
-        float2 offset = random(id, count, 0u).xy - float2(0.5);
-        float3 target = (pixel_0 + (pixel_u * (float(id.x) + offset.x))) + (pixel_v * (float(id.y) + offset.y));
-        for (uint i = 0u; i < 10u; i++)
-        {
-            float2 _618 = random(id, count, i).xy;
-            ray.origin.x = _618.x;
-            ray.origin.y = _618.y;
-            if (dot(ray.origin.xy, ray.origin.xy) < 1.0)
-            {
-                break;
-            }
-        }
-        ray.origin = (float3(13.0, 2.0, 3.0) + ((float3(0.29408586025238037109375, 0.0, -0.955779016017913818359375) * ray.origin.x) * 0.052360355854034423828125)) + ((float3(-0.1390453875064849853515625, 0.98936140537261962890625, -0.0427831970155239105224609375) * ray.origin.y) * 0.052360355854034423828125);
-        ray.direction = target - ray.origin;
-        float3 attenuation = float3(1.0);
-        for (uint depth = 0u; depth < 20u; depth++)
-        {
-            float near = 0.001000000047497451305389404296875;
-            float far = 1000000.0;
-            bool status = false;
-            for (uint i_1 = 0u; i_1 < _683.num_spheres; i_1++)
-            {
-                arg.position = float3(_692.spheres[i_1].position);
-                arg.radius = _692.spheres[i_1].radius;
-                arg.material.albedo = float3(_692.spheres[i_1].material.albedo);
-                arg.material.type = _692.spheres[i_1].material.type;
-                arg.material.fuzz = _692.spheres[i_1].material.fuzz;
-                arg.material.refraction = _692.spheres[i_1].material.refraction;
-                arg.material.padding1 = _692.spheres[i_1].material.padding1;
-                arg.material.padding2 = _692.spheres[i_1].material.padding2;
-                bool _724 = hit_sphere(arg, ray, near, far, param);
-                hit = param;
-                if (_724)
+                if (_258 < 10u)
                 {
-                    status = true;
-                    far = hit.offset;
+                    uint _264 = _258 + (_258 << 10u);
+                    uint _266 = _264 ^ (_264 >> 6u);
+                    uint _268 = _266 + (_266 << 3u);
+                    uint _270 = _268 ^ (_268 >> 11u);
+                    uint _273 = _187 ^ (_270 + (_270 << 15u));
+                    uint _274 = _273 ^ _197;
+                    uint _276 = _274 + (_274 << 10u);
+                    uint _278 = _276 ^ (_276 >> 6u);
+                    uint _280 = _278 + (_278 << 3u);
+                    uint _282 = _280 ^ (_280 >> 11u);
+                    uint _289 = _273 ^ _223;
+                    uint _291 = _289 + (_289 << 10u);
+                    uint _293 = _291 ^ (_291 >> 6u);
+                    uint _295 = _293 + (_293 << 3u);
+                    uint _297 = _295 ^ (_295 >> 11u);
+                    float4 _306 = (float4(as_type<float>(((_282 + (_282 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_297 + (_297 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84, _84) * 2.0) - float4(1.0);
+                    _256 = float3(_306.x, _306.y, _255.z);
+                    float2 _307 = _306.xy;
+                    if (dot(_307, _307) < 1.0)
+                    {
+                        _312 = _256;
+                        break;
+                    }
+                    _255 = _256;
+                    _258++;
+                    continue;
+                }
+                else
+                {
+                    _312 = _255;
+                    break;
                 }
             }
-            if (!status)
+            float3 _320 = (float3(13.0, 2.0, 3.0) + ((_108 * _312.x) * _120)) + ((_109 * _312.y) * _120);
+            float3 _325;
+            float3 _327;
+            float3 _329;
+            float3 _335;
+            float3 _336;
+            float3 _340;
+            float3 _348;
+            _143 = _320;
+            _325 = float3(1.0);
+            _327 = _145;
+            _329 = _147;
+            _335 = _153;
+            _336 = _155;
+            _340 = _159;
+            _348 = ((_137 + (_125 * (float(gl_GlobalInvocationID.x) + _243.x))) + (_127 * (float(gl_GlobalInvocationID.y) + _243.y))) - _320;
+            float3 _326;
+            float3 _323;
+            float3 _328;
+            float3 _330;
+            bool _332;
+            float _334;
+            float3 _337;
+            bool _339;
+            float3 _341;
+            uint _343;
+            float _345;
+            float _347;
+            float3 _677;
+            bool _331 = _149;
+            float _333 = _151;
+            bool _338 = _157;
+            uint _342 = _161;
+            float _344 = _163;
+            float _346 = _165;
+            uint _349 = 0u;
+            for (;;)
             {
-                float y = (fast::normalize(ray.direction).y * 0.5) + 0.5;
-                float3 colour_1 = (float3(1.0) * (1.0 - y)) + (float3(0.5, 0.699999988079071044921875, 1.0) * y);
-                attenuation *= colour_1;
-                break;
+                if (_349 < 20u)
+                {
+                    bool _366;
+                    _334 = _333;
+                    _323 = _335;
+                    _337 = _336;
+                    _339 = _338;
+                    _341 = _340;
+                    _343 = _342;
+                    _345 = _344;
+                    _347 = _346;
+                    _366 = false;
+                    float _356;
+                    bool _367;
+                    float _358;
+                    float3 _359;
+                    float3 _360;
+                    bool _361;
+                    float3 _362;
+                    uint _363;
+                    float _364;
+                    float _365;
+                    float _355 = 1000000.0;
+                    uint _368 = 0u;
+                    for (; _368 < UniformBuffer.NumSpheres; _355 = _356, _334 = _358, _323 = _359, _337 = _360, _339 = _361, _341 = _362, _343 = _363, _345 = _364, _347 = _365, _366 = _367, _368++)
+                    {
+                        bool _432;
+                        do
+                        {
+                            float3 _386 = float3(spheres._m0[_368].Position) - _143;
+                            float _387 = dot(_348, _348);
+                            float _388 = dot(_348, _386);
+                            float _394 = (_388 * _388) - (_387 * (dot(_386, _386) - powr(spheres._m0[_368].Radius, 2.0)));
+                            if (_394 < 0.0)
+                            {
+                                _359 = _323;
+                                _360 = _337;
+                                _361 = _339;
+                                _362 = _341;
+                                _363 = _343;
+                                _364 = _345;
+                                _365 = _347;
+                                _358 = _334;
+                                _432 = false;
+                                break;
+                            }
+                            float _398 = sqrt(_394);
+                            float _400 = (_388 - _398) / _387;
+                            bool _406;
+                            if (!(_400 <= 0.001000000047497451305389404296875))
+                            {
+                                _406 = _355 <= _400;
+                            }
+                            else
+                            {
+                                _406 = true;
+                            }
+                            float _419;
+                            if (_406)
+                            {
+                                float _410 = (_388 + _398) / _387;
+                                bool _416;
+                                if (!(_410 <= 0.001000000047497451305389404296875))
+                                {
+                                    _416 = _355 <= _410;
+                                }
+                                else
+                                {
+                                    _416 = true;
+                                }
+                                if (_416)
+                                {
+                                    _359 = _323;
+                                    _360 = _337;
+                                    _361 = _339;
+                                    _362 = _341;
+                                    _363 = _343;
+                                    _364 = _345;
+                                    _365 = _347;
+                                    _358 = _334;
+                                    _432 = false;
+                                    break;
+                                }
+                                _419 = _410;
+                            }
+                            else
+                            {
+                                _419 = _400;
+                            }
+                            float3 _421 = _143 + (_348 * _419);
+                            float3 _424 = (_421 - float3(spheres._m0[_368].Position)) / float3(spheres._m0[_368].Radius);
+                            bool _426 = dot(_348, _424) < 0.0;
+                            float3 _431;
+                            if (!_426)
+                            {
+                                _431 = -_424;
+                            }
+                            else
+                            {
+                                _431 = _424;
+                            }
+                            _359 = _421;
+                            _360 = _431;
+                            _361 = _426;
+                            _362 = float3(spheres._m0[_368].Material.Albedo);
+                            _363 = spheres._m0[_368].Material.Type;
+                            _364 = spheres._m0[_368].Material.Fuzz;
+                            _365 = spheres._m0[_368].Material.Refraction;
+                            _358 = _419;
+                            _432 = true;
+                            break;
+                        } while(false);
+                        _356 = _432 ? _358 : _355;
+                        _367 = _432 ? true : _366;
+                    }
+                    if (!_366)
+                    {
+                        float _438 = fast::normalize(_348).y * 0.5;
+                        _146 = _327;
+                        _148 = _329;
+                        _150 = _331;
+                        _152 = _334;
+                        _154 = _323;
+                        _156 = _337;
+                        _158 = _339;
+                        _160 = _341;
+                        _162 = _343;
+                        _164 = _345;
+                        _166 = _347;
+                        _677 = _325 * ((float3(1.0) * (0.5 - _438)) + (float3(0.5, 0.699999988079071044921875, 1.0) * (_438 + 0.5)));
+                        break;
+                    }
+                    do
+                    {
+                        bool _671;
+                        bool _672;
+                        switch (_343)
+                        {
+                            case 0u:
+                            {
+                                uint _452 = _349 + (_349 << 10u);
+                                uint _454 = _452 ^ (_452 >> 6u);
+                                uint _456 = _454 + (_454 << 3u);
+                                uint _458 = _456 ^ (_456 >> 11u);
+                                uint _461 = _187 ^ (_458 + (_458 << 15u));
+                                uint _462 = _461 ^ _197;
+                                uint _464 = _462 + (_462 << 10u);
+                                uint _466 = _464 ^ (_464 >> 6u);
+                                uint _468 = _466 + (_466 << 3u);
+                                uint _470 = _468 ^ (_468 >> 11u);
+                                uint _477 = _461 ^ _223;
+                                uint _479 = _477 + (_477 << 10u);
+                                uint _481 = _479 ^ (_479 >> 6u);
+                                uint _483 = _481 + (_481 << 3u);
+                                uint _485 = _483 ^ (_483 >> 11u);
+                                uint _492 = _170 * 97u;
+                                uint _494 = _492 + (_492 << 10u);
+                                uint _496 = _494 ^ (_494 >> 6u);
+                                uint _498 = _496 + (_496 << 3u);
+                                uint _500 = _498 ^ (_498 >> 11u);
+                                uint _503 = _461 ^ (_500 + (_500 << 15u));
+                                uint _505 = _503 + (_503 << 10u);
+                                uint _507 = _505 ^ (_505 >> 6u);
+                                uint _509 = _507 + (_507 << 3u);
+                                uint _511 = _509 ^ (_509 >> 11u);
+                                float3 _522 = ((float4(as_type<float>(((_470 + (_470 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_485 + (_485 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_511 + (_511 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84) * 2.0) - float4(1.0)).xyz + _337;
+                                _328 = _341;
+                                _330 = select(_522, _337, bool3(dot(_522, _522) < 0.001000000047497451305389404296875));
+                                _671 = true;
+                                _672 = true;
+                                break;
+                            }
+                            case 1u:
+                            {
+                                uint _530 = _349 + (_349 << 10u);
+                                uint _532 = _530 ^ (_530 >> 6u);
+                                uint _534 = _532 + (_532 << 3u);
+                                uint _536 = _534 ^ (_534 >> 11u);
+                                uint _539 = _187 ^ (_536 + (_536 << 15u));
+                                uint _540 = _539 ^ _197;
+                                uint _542 = _540 + (_540 << 10u);
+                                uint _544 = _542 ^ (_542 >> 6u);
+                                uint _546 = _544 + (_544 << 3u);
+                                uint _548 = _546 ^ (_546 >> 11u);
+                                uint _555 = _539 ^ _223;
+                                uint _557 = _555 + (_555 << 10u);
+                                uint _559 = _557 ^ (_557 >> 6u);
+                                uint _561 = _559 + (_559 << 3u);
+                                uint _563 = _561 ^ (_561 >> 11u);
+                                uint _570 = _170 * 97u;
+                                uint _572 = _570 + (_570 << 10u);
+                                uint _574 = _572 ^ (_572 >> 6u);
+                                uint _576 = _574 + (_574 << 3u);
+                                uint _578 = _576 ^ (_576 >> 11u);
+                                uint _581 = _539 ^ (_578 + (_578 << 15u));
+                                uint _583 = _581 + (_581 << 10u);
+                                uint _585 = _583 ^ (_583 >> 6u);
+                                uint _587 = _585 + (_585 << 3u);
+                                uint _589 = _587 ^ (_587 >> 11u);
+                                float3 _601 = fast::normalize(reflect(_348, _337)) + (((float4(as_type<float>(((_548 + (_548 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_563 + (_563 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_589 + (_589 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84) * 2.0) - float4(1.0)).xyz * _345);
+                                _328 = _341;
+                                _330 = _601;
+                                _671 = dot(_601, _337) > 0.0;
+                                _672 = true;
+                                break;
+                            }
+                            case 2u:
+                            {
+                                float _608;
+                                if (_339)
+                                {
+                                    _608 = 1.0 / _347;
+                                }
+                                else
+                                {
+                                    _608 = _347;
+                                }
+                                float3 _609 = fast::normalize(_348);
+                                float _612 = precise::min(dot(-_609, _337), 1.0);
+                                float _619 = powr((1.0 - _347) / (1.0 + _347), 2.0);
+                                if ((_608 * sqrt(1.0 - powr(_612, 2.0))) > 1.0)
+                                {
+                                    _328 = float3(1.0);
+                                    _330 = reflect(_609, _337);
+                                    _671 = true;
+                                    _672 = true;
+                                    break;
+                                }
+                                uint2 _636 = as_type<uint2>((float2(gl_GlobalInvocationID.xy) * float2(960.0, 540.0)) + float2(float(_349), float(_169)));
+                                uint _638 = _636.y;
+                                uint _640 = _638 + (_638 << 10u);
+                                uint _642 = _640 ^ (_640 >> 6u);
+                                uint _644 = _642 + (_642 << 3u);
+                                uint _646 = _644 ^ (_644 >> 11u);
+                                uint _649 = _636.x ^ (_646 + (_646 << 15u));
+                                uint _651 = _649 + (_649 << 10u);
+                                uint _653 = _651 ^ (_651 >> 6u);
+                                uint _655 = _653 + (_653 << 3u);
+                                uint _657 = _655 ^ (_655 >> 11u);
+                                float3 _670;
+                                if ((_619 + ((1.0 - _619) * powr(1.0 - _612, 5.0))) > (as_type<float>(((_657 + (_657 << 15u)) & 8388607u) | 1065353216u) - 1.0))
+                                {
+                                    _670 = reflect(_609, _337);
+                                }
+                                else
+                                {
+                                    _670 = refract(_609, _337, _608);
+                                }
+                                _328 = float3(1.0);
+                                _330 = _670;
+                                _671 = true;
+                                _672 = true;
+                                break;
+                            }
+                            default:
+                            {
+                                _328 = _327;
+                                _330 = _329;
+                                _671 = _331;
+                                _672 = false;
+                                break;
+                            }
+                        }
+                        if (_672)
+                        {
+                            _332 = _671;
+                            break;
+                        }
+                        _332 = false;
+                        break;
+                    } while(false);
+                    if (!_332)
+                    {
+                        _146 = _328;
+                        _148 = _330;
+                        _150 = _332;
+                        _152 = _334;
+                        _154 = _323;
+                        _156 = _337;
+                        _158 = _339;
+                        _160 = _341;
+                        _162 = _343;
+                        _164 = _345;
+                        _166 = _347;
+                        _677 = float3(0.0);
+                        break;
+                    }
+                    _326 = _325 * _328;
+                    _143 = _323;
+                    _325 = _326;
+                    _327 = _328;
+                    _329 = _330;
+                    _331 = _332;
+                    _333 = _334;
+                    _335 = _323;
+                    _336 = _337;
+                    _338 = _339;
+                    _340 = _341;
+                    _342 = _343;
+                    _344 = _345;
+                    _346 = _347;
+                    _348 = _330;
+                    _349++;
+                    continue;
+                }
+                else
+                {
+                    _146 = _327;
+                    _148 = _329;
+                    _150 = _331;
+                    _152 = _333;
+                    _154 = _335;
+                    _156 = _336;
+                    _158 = _338;
+                    _160 = _340;
+                    _162 = _342;
+                    _164 = _344;
+                    _166 = _346;
+                    _677 = _325;
+                    break;
+                }
             }
-            bool _765 = get_bounce(ray, hit, id, count, depth, param_1, param_2);
-            float3 bounce = param_1;
-            float3 colour_2 = param_2;
-            if (!_765)
-            {
-                attenuation = float3(0.0);
-                break;
-            }
-            ray = ray_t{ hit.position, bounce };
-            attenuation *= colour_2;
+            _168 = _167 + _677;
         }
-        colour += attenuation;
-    }
-    if (_560.batch != 0u)
-    {
-        spvImageFence(image1);
-        colour += image1.read(uint2(int2(id))).xyz;
-    }
-    float3 curr = sqrt(colour / float3(float((_560.batch + 1u) * 10u)));
-    if (_560.batch == 49u)
-    {
-        colour = sqrt(colour / float3(500.0));
-    }
-    image1.write(float4(colour, 1.0), uint2(int2(id)));
-    image2.write(float4(curr, 1.0), uint2(int2(id)));
+        float3 _685;
+        if (UniformBuffer_1.Batch != 0u)
+        {
+            spvImageFence(image1);
+            _685 = _167 + image1.read(uint2(gl_GlobalInvocationID.xy)).xyz;
+        }
+        else
+        {
+            _685 = _167;
+        }
+        float3 _697;
+        if (UniformBuffer_1.Batch == 49u)
+        {
+            _697 = sqrt(_685 * float3(0.00200000009499490261077880859375));
+        }
+        else
+        {
+            _697 = _685;
+        }
+        image1.write(float4(_697, 1.0), uint2(gl_GlobalInvocationID.xy));
+        image2.write(float4(sqrt(_685 / float3(float((UniformBuffer_1.Batch + 1u) * 10u))), 1.0), uint2(gl_GlobalInvocationID.xy));
+        break;
+    } while(false);
 }
 

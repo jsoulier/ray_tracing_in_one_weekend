@@ -22,10 +22,10 @@ static SDL_GPUBuffer* create_spheres(
         float r;
         float g;
         float b;
+        uint32_t padding1;
         uint32_t type;
         float fuzz;
         float refraction;
-        uint32_t padding1;
         uint32_t padding2;
     }
     spheres[4 + 484] =
@@ -195,20 +195,12 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_SetWindowAlwaysOnTop(window, true);
-    size_t size;
-    void* code = SDL_LoadFile("shader.comp", &size);
-    if (!code)
-    {
-        SDL_Log("Failed to load compute pipeline:  %s", SDL_GetError());
-        return EXIT_FAILURE;
-    }
     SDL_GPUComputePipeline* pipeline = load_compute_pipeline(device, "shader.comp");
     if (!pipeline)
     {
         SDL_Log("Failed to load compute pipeline");
         return EXIT_FAILURE;
     }
-    SDL_free(code);
     SDL_GPUTextureCreateInfo tci = {0};
     tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE |
         SDL_GPU_TEXTUREUSAGE_SAMPLER;
