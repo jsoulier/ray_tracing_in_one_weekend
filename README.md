@@ -8,8 +8,6 @@ Implementation of [Ray Tracing in One Weekend](https://raytracing.github.io/) us
 
 #### Windows
 
-Install the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/) for glslc
-
 ```bash
 git clone https://github.com/jsoulier/ray_tracing_in_one_weekend --recurse-submodules
 cd ray_tracing_in_one_weekend

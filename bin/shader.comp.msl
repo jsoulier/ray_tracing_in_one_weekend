@@ -1,0 +1,582 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+// Implementation of the GLSL radians() function
+template<typename T>
+inline T radians(T d)
+{
+    return d * T(0.01745329251);
+}
+
+template <typename ImageT>
+void spvImageFence(ImageT img) { img.fence(); }
+
+struct type_UniformBuffer
+{
+    uint NumSpheres;
+};
+
+struct type_UniformBuffer_1
+{
+    uint Batch;
+};
+
+struct Material
+{
+    packed_float3 Albedo;
+    uint Padding1;
+    uint Type;
+    float Fuzz;
+    float Refraction;
+    uint Padding2;
+};
+
+struct Sphere
+{
+    packed_float3 Position;
+    float Radius;
+    Material Material;
+};
+
+struct type_StructuredBuffer_Sphere
+{
+    Sphere _m0[1];
+};
+
+constant uint _73 = {};
+constant float _74 = {};
+constant float3 _75 = {};
+constant bool _76 = {};
+constant float _84 = {};
+constant float3 _85 = {};
+
+kernel void main0(constant type_UniformBuffer& UniformBuffer [[buffer(0)]], constant type_UniformBuffer_1& UniformBuffer_1 [[buffer(1)]], const device type_StructuredBuffer_Sphere& spheres [[buffer(2)]], texture2d<float, access::read_write> image1 [[texture(0)]], texture2d<float, access::write> image2 [[texture(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
+{
+    do
+    {
+        uint2 _92 = uint2(image1.get_width(), image1.get_height());
+        uint _95 = _92.x;
+        bool _103;
+        if (!(gl_GlobalInvocationID.x >= _95))
+        {
+            _103 = gl_GlobalInvocationID.y >= _92.y;
+        }
+        else
+        {
+            _103 = true;
+        }
+        if (_103)
+        {
+            break;
+        }
+        float3 _106 = fast::normalize(float3(13.0, 2.0, 4.0));
+        float3 _108 = fast::normalize(cross(float3(0.0, 1.0, 0.0), _106));
+        float3 _109 = cross(_106, _108);
+        float _112 = tan(radians(10.0)) * 20.0;
+        float _113 = float(_95);
+        float _116 = float(_92.y);
+        float _120 = 10.0 * tan(radians(0.300000011920928955078125));
+        float3 _121 = _108 * ((_112 * _113) / _116);
+        float3 _123 = (-_109) * _112;
+        float3 _125 = _121 / float3(_113);
+        float3 _127 = _123 / float3(_116);
+        float3 _137 = ((((float3(13.0, 2.0, 3.0) - (_106 * 10.0)) - (_121 * float3(0.5))) - (_123 * float3(0.5))) + (_125 * float3(0.5))) + (_127 * float3(0.5));
+        uint _140 = UniformBuffer_1.Batch * 10u;
+        float3 _142;
+        float3 _145;
+        float3 _147;
+        float3 _153;
+        float3 _155;
+        float3 _159;
+        float3 _167;
+        _142 = _85;
+        _145 = _75;
+        _147 = _75;
+        _153 = _75;
+        _155 = _75;
+        _159 = _75;
+        _167 = float3(0.0);
+        float3 _168;
+        uint _170;
+        float3 _143;
+        float3 _146;
+        float3 _148;
+        bool _150;
+        float _152;
+        float3 _154;
+        float3 _156;
+        bool _158;
+        float3 _160;
+        uint _162;
+        float _164;
+        float _166;
+        bool _149;
+        float _151;
+        bool _157;
+        uint _161;
+        float _163;
+        float _165;
+        for (uint _169 = _140; _169 < (_140 + 10u); _142 = _143, _145 = _146, _147 = _148, _149 = _150, _151 = _152, _153 = _154, _155 = _156, _157 = _158, _159 = _160, _161 = _162, _163 = _164, _165 = _166, _167 = _168, _169 = _170)
+        {
+            _170 = _169 + 1u;
+            uint _176 = _170 * 17u;
+            uint _178 = gl_GlobalInvocationID.y + (gl_GlobalInvocationID.y << 10u);
+            uint _180 = _178 ^ (_178 >> 6u);
+            uint _182 = _180 + (_180 << 3u);
+            uint _184 = _182 ^ (_182 >> 11u);
+            uint _187 = gl_GlobalInvocationID.x ^ (_184 + (_184 << 15u));
+            uint _189 = _176 + (_176 << 10u);
+            uint _191 = _189 ^ (_189 >> 6u);
+            uint _193 = _191 + (_191 << 3u);
+            uint _195 = _193 ^ (_193 >> 11u);
+            uint _197 = _195 + (_195 << 15u);
+            uint _198 = _187 ^ _197;
+            uint _200 = _198 + (_198 << 10u);
+            uint _202 = _200 ^ (_200 >> 6u);
+            uint _204 = _202 + (_202 << 3u);
+            uint _206 = _204 ^ (_204 >> 11u);
+            uint _213 = _170 * 73u;
+            uint _215 = _213 + (_213 << 10u);
+            uint _217 = _215 ^ (_215 >> 6u);
+            uint _219 = _217 + (_217 << 3u);
+            uint _221 = _219 ^ (_219 >> 11u);
+            uint _223 = _221 + (_221 << 15u);
+            uint _224 = _187 ^ _223;
+            uint _226 = _224 + (_224 << 10u);
+            uint _228 = _226 ^ (_226 >> 6u);
+            uint _230 = _228 + (_228 << 3u);
+            uint _232 = _230 ^ (_230 >> 11u);
+            float2 _243 = ((float4(as_type<float>(((_206 + (_206 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_232 + (_232 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84, _84) * 2.0) - float4(1.0)).xy - float2(0.5);
+            float3 _255;
+            _255 = _142;
+            float3 _256;
+            float3 _312;
+            uint _258 = 0u;
+            for (;;)
+            {
+                if (_258 < 10u)
+                {
+                    uint _264 = _258 + (_258 << 10u);
+                    uint _266 = _264 ^ (_264 >> 6u);
+                    uint _268 = _266 + (_266 << 3u);
+                    uint _270 = _268 ^ (_268 >> 11u);
+                    uint _273 = _187 ^ (_270 + (_270 << 15u));
+                    uint _274 = _273 ^ _197;
+                    uint _276 = _274 + (_274 << 10u);
+                    uint _278 = _276 ^ (_276 >> 6u);
+                    uint _280 = _278 + (_278 << 3u);
+                    uint _282 = _280 ^ (_280 >> 11u);
+                    uint _289 = _273 ^ _223;
+                    uint _291 = _289 + (_289 << 10u);
+                    uint _293 = _291 ^ (_291 >> 6u);
+                    uint _295 = _293 + (_293 << 3u);
+                    uint _297 = _295 ^ (_295 >> 11u);
+                    float4 _306 = (float4(as_type<float>(((_282 + (_282 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_297 + (_297 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84, _84) * 2.0) - float4(1.0);
+                    _256 = float3(_306.x, _306.y, _255.z);
+                    float2 _307 = _306.xy;
+                    if (dot(_307, _307) < 1.0)
+                    {
+                        _312 = _256;
+                        break;
+                    }
+                    _255 = _256;
+                    _258++;
+                    continue;
+                }
+                else
+                {
+                    _312 = _255;
+                    break;
+                }
+            }
+            float3 _320 = (float3(13.0, 2.0, 3.0) + ((_108 * _312.x) * _120)) + ((_109 * _312.y) * _120);
+            float3 _325;
+            float3 _327;
+            float3 _329;
+            float3 _335;
+            float3 _336;
+            float3 _340;
+            float3 _348;
+            _143 = _320;
+            _325 = float3(1.0);
+            _327 = _145;
+            _329 = _147;
+            _335 = _153;
+            _336 = _155;
+            _340 = _159;
+            _348 = ((_137 + (_125 * (float(gl_GlobalInvocationID.x) + _243.x))) + (_127 * (float(gl_GlobalInvocationID.y) + _243.y))) - _320;
+            float3 _326;
+            float3 _323;
+            float3 _328;
+            float3 _330;
+            bool _332;
+            float _334;
+            float3 _337;
+            bool _339;
+            float3 _341;
+            uint _343;
+            float _345;
+            float _347;
+            float3 _677;
+            bool _331 = _149;
+            float _333 = _151;
+            bool _338 = _157;
+            uint _342 = _161;
+            float _344 = _163;
+            float _346 = _165;
+            uint _349 = 0u;
+            for (;;)
+            {
+                if (_349 < 20u)
+                {
+                    bool _366;
+                    _334 = _333;
+                    _323 = _335;
+                    _337 = _336;
+                    _339 = _338;
+                    _341 = _340;
+                    _343 = _342;
+                    _345 = _344;
+                    _347 = _346;
+                    _366 = false;
+                    float _356;
+                    bool _367;
+                    float _358;
+                    float3 _359;
+                    float3 _360;
+                    bool _361;
+                    float3 _362;
+                    uint _363;
+                    float _364;
+                    float _365;
+                    float _355 = 1000000.0;
+                    uint _368 = 0u;
+                    for (; _368 < UniformBuffer.NumSpheres; _355 = _356, _334 = _358, _323 = _359, _337 = _360, _339 = _361, _341 = _362, _343 = _363, _345 = _364, _347 = _365, _366 = _367, _368++)
+                    {
+                        bool _432;
+                        do
+                        {
+                            float3 _386 = float3(spheres._m0[_368].Position) - _143;
+                            float _387 = dot(_348, _348);
+                            float _388 = dot(_348, _386);
+                            float _394 = (_388 * _388) - (_387 * (dot(_386, _386) - powr(spheres._m0[_368].Radius, 2.0)));
+                            if (_394 < 0.0)
+                            {
+                                _359 = _323;
+                                _360 = _337;
+                                _361 = _339;
+                                _362 = _341;
+                                _363 = _343;
+                                _364 = _345;
+                                _365 = _347;
+                                _358 = _334;
+                                _432 = false;
+                                break;
+                            }
+                            float _398 = sqrt(_394);
+                            float _400 = (_388 - _398) / _387;
+                            bool _406;
+                            if (!(_400 <= 0.001000000047497451305389404296875))
+                            {
+                                _406 = _355 <= _400;
+                            }
+                            else
+                            {
+                                _406 = true;
+                            }
+                            float _419;
+                            if (_406)
+                            {
+                                float _410 = (_388 + _398) / _387;
+                                bool _416;
+                                if (!(_410 <= 0.001000000047497451305389404296875))
+                                {
+                                    _416 = _355 <= _410;
+                                }
+                                else
+                                {
+                                    _416 = true;
+                                }
+                                if (_416)
+                                {
+                                    _359 = _323;
+                                    _360 = _337;
+                                    _361 = _339;
+                                    _362 = _341;
+                                    _363 = _343;
+                                    _364 = _345;
+                                    _365 = _347;
+                                    _358 = _334;
+                                    _432 = false;
+                                    break;
+                                }
+                                _419 = _410;
+                            }
+                            else
+                            {
+                                _419 = _400;
+                            }
+                            float3 _421 = _143 + (_348 * _419);
+                            float3 _424 = (_421 - float3(spheres._m0[_368].Position)) / float3(spheres._m0[_368].Radius);
+                            bool _426 = dot(_348, _424) < 0.0;
+                            float3 _431;
+                            if (!_426)
+                            {
+                                _431 = -_424;
+                            }
+                            else
+                            {
+                                _431 = _424;
+                            }
+                            _359 = _421;
+                            _360 = _431;
+                            _361 = _426;
+                            _362 = float3(spheres._m0[_368].Material.Albedo);
+                            _363 = spheres._m0[_368].Material.Type;
+                            _364 = spheres._m0[_368].Material.Fuzz;
+                            _365 = spheres._m0[_368].Material.Refraction;
+                            _358 = _419;
+                            _432 = true;
+                            break;
+                        } while(false);
+                        _356 = _432 ? _358 : _355;
+                        _367 = _432 ? true : _366;
+                    }
+                    if (!_366)
+                    {
+                        float _438 = fast::normalize(_348).y * 0.5;
+                        _146 = _327;
+                        _148 = _329;
+                        _150 = _331;
+                        _152 = _334;
+                        _154 = _323;
+                        _156 = _337;
+                        _158 = _339;
+                        _160 = _341;
+                        _162 = _343;
+                        _164 = _345;
+                        _166 = _347;
+                        _677 = _325 * ((float3(1.0) * (0.5 - _438)) + (float3(0.5, 0.699999988079071044921875, 1.0) * (_438 + 0.5)));
+                        break;
+                    }
+                    do
+                    {
+                        bool _671;
+                        bool _672;
+                        switch (_343)
+                        {
+                            case 0u:
+                            {
+                                uint _452 = _349 + (_349 << 10u);
+                                uint _454 = _452 ^ (_452 >> 6u);
+                                uint _456 = _454 + (_454 << 3u);
+                                uint _458 = _456 ^ (_456 >> 11u);
+                                uint _461 = _187 ^ (_458 + (_458 << 15u));
+                                uint _462 = _461 ^ _197;
+                                uint _464 = _462 + (_462 << 10u);
+                                uint _466 = _464 ^ (_464 >> 6u);
+                                uint _468 = _466 + (_466 << 3u);
+                                uint _470 = _468 ^ (_468 >> 11u);
+                                uint _477 = _461 ^ _223;
+                                uint _479 = _477 + (_477 << 10u);
+                                uint _481 = _479 ^ (_479 >> 6u);
+                                uint _483 = _481 + (_481 << 3u);
+                                uint _485 = _483 ^ (_483 >> 11u);
+                                uint _492 = _170 * 97u;
+                                uint _494 = _492 + (_492 << 10u);
+                                uint _496 = _494 ^ (_494 >> 6u);
+                                uint _498 = _496 + (_496 << 3u);
+                                uint _500 = _498 ^ (_498 >> 11u);
+                                uint _503 = _461 ^ (_500 + (_500 << 15u));
+                                uint _505 = _503 + (_503 << 10u);
+                                uint _507 = _505 ^ (_505 >> 6u);
+                                uint _509 = _507 + (_507 << 3u);
+                                uint _511 = _509 ^ (_509 >> 11u);
+                                float3 _522 = ((float4(as_type<float>(((_470 + (_470 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_485 + (_485 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_511 + (_511 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84) * 2.0) - float4(1.0)).xyz + _337;
+                                _328 = _341;
+                                _330 = select(_522, _337, bool3(dot(_522, _522) < 0.001000000047497451305389404296875));
+                                _671 = true;
+                                _672 = true;
+                                break;
+                            }
+                            case 1u:
+                            {
+                                uint _530 = _349 + (_349 << 10u);
+                                uint _532 = _530 ^ (_530 >> 6u);
+                                uint _534 = _532 + (_532 << 3u);
+                                uint _536 = _534 ^ (_534 >> 11u);
+                                uint _539 = _187 ^ (_536 + (_536 << 15u));
+                                uint _540 = _539 ^ _197;
+                                uint _542 = _540 + (_540 << 10u);
+                                uint _544 = _542 ^ (_542 >> 6u);
+                                uint _546 = _544 + (_544 << 3u);
+                                uint _548 = _546 ^ (_546 >> 11u);
+                                uint _555 = _539 ^ _223;
+                                uint _557 = _555 + (_555 << 10u);
+                                uint _559 = _557 ^ (_557 >> 6u);
+                                uint _561 = _559 + (_559 << 3u);
+                                uint _563 = _561 ^ (_561 >> 11u);
+                                uint _570 = _170 * 97u;
+                                uint _572 = _570 + (_570 << 10u);
+                                uint _574 = _572 ^ (_572 >> 6u);
+                                uint _576 = _574 + (_574 << 3u);
+                                uint _578 = _576 ^ (_576 >> 11u);
+                                uint _581 = _539 ^ (_578 + (_578 << 15u));
+                                uint _583 = _581 + (_581 << 10u);
+                                uint _585 = _583 ^ (_583 >> 6u);
+                                uint _587 = _585 + (_585 << 3u);
+                                uint _589 = _587 ^ (_587 >> 11u);
+                                float3 _601 = fast::normalize(reflect(_348, _337)) + (((float4(as_type<float>(((_548 + (_548 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_563 + (_563 << 15u)) & 8388607u) | 1065353216u) - 1.0, as_type<float>(((_589 + (_589 << 15u)) & 8388607u) | 1065353216u) - 1.0, _84) * 2.0) - float4(1.0)).xyz * _345);
+                                _328 = _341;
+                                _330 = _601;
+                                _671 = dot(_601, _337) > 0.0;
+                                _672 = true;
+                                break;
+                            }
+                            case 2u:
+                            {
+                                float _608;
+                                if (_339)
+                                {
+                                    _608 = 1.0 / _347;
+                                }
+                                else
+                                {
+                                    _608 = _347;
+                                }
+                                float3 _609 = fast::normalize(_348);
+                                float _612 = precise::min(dot(-_609, _337), 1.0);
+                                float _619 = powr((1.0 - _347) / (1.0 + _347), 2.0);
+                                if ((_608 * sqrt(1.0 - powr(_612, 2.0))) > 1.0)
+                                {
+                                    _328 = float3(1.0);
+                                    _330 = reflect(_609, _337);
+                                    _671 = true;
+                                    _672 = true;
+                                    break;
+                                }
+                                uint2 _636 = as_type<uint2>((float2(gl_GlobalInvocationID.xy) * float2(960.0, 540.0)) + float2(float(_349), float(_169)));
+                                uint _638 = _636.y;
+                                uint _640 = _638 + (_638 << 10u);
+                                uint _642 = _640 ^ (_640 >> 6u);
+                                uint _644 = _642 + (_642 << 3u);
+                                uint _646 = _644 ^ (_644 >> 11u);
+                                uint _649 = _636.x ^ (_646 + (_646 << 15u));
+                                uint _651 = _649 + (_649 << 10u);
+                                uint _653 = _651 ^ (_651 >> 6u);
+                                uint _655 = _653 + (_653 << 3u);
+                                uint _657 = _655 ^ (_655 >> 11u);
+                                float3 _670;
+                                if ((_619 + ((1.0 - _619) * powr(1.0 - _612, 5.0))) > (as_type<float>(((_657 + (_657 << 15u)) & 8388607u) | 1065353216u) - 1.0))
+                                {
+                                    _670 = reflect(_609, _337);
+                                }
+                                else
+                                {
+                                    _670 = refract(_609, _337, _608);
+                                }
+                                _328 = float3(1.0);
+                                _330 = _670;
+                                _671 = true;
+                                _672 = true;
+                                break;
+                            }
+                            default:
+                            {
+                                _328 = _327;
+                                _330 = _329;
+                                _671 = _331;
+                                _672 = false;
+                                break;
+                            }
+                        }
+                        if (_672)
+                        {
+                            _332 = _671;
+                            break;
+                        }
+                        _332 = false;
+                        break;
+                    } while(false);
+                    if (!_332)
+                    {
+                        _146 = _328;
+                        _148 = _330;
+                        _150 = _332;
+                        _152 = _334;
+                        _154 = _323;
+                        _156 = _337;
+                        _158 = _339;
+                        _160 = _341;
+                        _162 = _343;
+                        _164 = _345;
+                        _166 = _347;
+                        _677 = float3(0.0);
+                        break;
+                    }
+                    _326 = _325 * _328;
+                    _143 = _323;
+                    _325 = _326;
+                    _327 = _328;
+                    _329 = _330;
+                    _331 = _332;
+                    _333 = _334;
+                    _335 = _323;
+                    _336 = _337;
+                    _338 = _339;
+                    _340 = _341;
+                    _342 = _343;
+                    _344 = _345;
+                    _346 = _347;
+                    _348 = _330;
+                    _349++;
+                    continue;
+                }
+                else
+                {
+                    _146 = _327;
+                    _148 = _329;
+                    _150 = _331;
+                    _152 = _333;
+                    _154 = _335;
+                    _156 = _336;
+                    _158 = _338;
+                    _160 = _340;
+                    _162 = _342;
+                    _164 = _344;
+                    _166 = _346;
+                    _677 = _325;
+                    break;
+                }
+            }
+            _168 = _167 + _677;
+        }
+        float3 _685;
+        if (UniformBuffer_1.Batch != 0u)
+        {
+            spvImageFence(image1);
+            _685 = _167 + image1.read(uint2(gl_GlobalInvocationID.xy)).xyz;
+        }
+        else
+        {
+            _685 = _167;
+        }
+        float3 _697;
+        if (UniformBuffer_1.Batch == 49u)
+        {
+            _697 = sqrt(_685 * float3(0.00200000009499490261077880859375));
+        }
+        else
+        {
+            _697 = _685;
+        }
+        image1.write(float4(_697, 1.0), uint2(gl_GlobalInvocationID.xy));
+        image2.write(float4(sqrt(_685 / float3(float((UniformBuffer_1.Batch + 1u) * 10u))), 1.0), uint2(gl_GlobalInvocationID.xy));
+        break;
+    } while(false);
+}
+

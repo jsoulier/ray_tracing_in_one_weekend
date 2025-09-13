@@ -1,67 +1,65 @@
-#version 450
-
 #include "config.h"
-#include "random.glsl"
+#include "random.hlsl"
 
-struct ray_t
+struct Ray
 {
-    vec3 origin;
-    vec3 direction;
-};
-
-struct material_t
-{
-    vec3 albedo;
-    uint type;
-    float fuzz;
-    float refraction;
-    uint padding1;
-    uint padding2;
+    float3 Origin;
+    float3 Direction;
 };
 
-struct hit_t
+struct Material
 {
-    float offset;
-    vec3 position;
-    vec3 normal;
-    bool face;
-    material_t material;
+    float3 Albedo;
+    uint Padding1;
+    uint Type;
+    float Fuzz;
+    float Refraction;
+    uint Padding2;
 };
 
-struct sphere_t
+struct Hit
 {
-    vec3 position;
-    float radius;
-    material_t material;
+    float Offset;
+    float3 Position;
+    float3 Normal;
+    bool Face;
+    Material Material;
 };
 
-layout(local_size_x = THREADS) in;
-layout(set = 0, binding = 0) readonly buffer spheres_t
+struct Sphere
 {
-    sphere_t spheres[];
-};
-layout(set = 1, binding = 0, rgba32f) uniform image2D image1;
-layout(set = 1, binding = 1, rgba32f) uniform image2D image2;
-layout(set = 2, binding = 0) uniform num_spheres_t
-{
-    uint num_spheres;
-};
-layout(set = 2, binding = 1) uniform batch_t
-{
-    uint batch;
+    float3 Position;
+    float Radius;
+    Material Material;
 };
 
-bool hit_sphere(
-    const in sphere_t sphere,
-    const in ray_t ray,
+cbuffer UniformBuffer : register(b0, space2)
+{
+    uint NumSpheres;
+};
+
+cbuffer UniformBuffer : register(b1, space2)
+{
+    uint Batch;
+};
+
+StructuredBuffer<Sphere> spheres : register(t0, space0);
+[[vk::image_format("rgba32f")]]
+RWTexture2D<float4> image1 : register(u0, space1);
+[[vk::image_format("rgba32f")]]
+RWTexture2D<float4> image2 : register(u1, space1);
+
+bool HitSphere(
+    const in Sphere sphere,
+    const in Ray ray,
     const in float near,
     const in float far,
-    out hit_t hit)
+    out Hit hit)
 {
-    const vec3 offset = sphere.position - ray.origin;
-    const float a = dot(ray.direction, ray.direction);
-    const float b = dot(ray.direction, offset);
-    const float c = dot(offset, offset) - pow(sphere.radius, 2);
+    const float3 offset = sphere.Position - ray.Origin;
+    const float a = dot(ray.Direction, ray.Direction);
+    const float b = dot(ray.Direction, offset);
+    const float c = dot(offset, offset) - pow(sphere.Radius, 2);
     const float discriminant = b * b - a * c;
     if (discriminant < 0.0f)
     {
@@ -76,44 +74,44 @@ bool hit_sphere(
             return false;
         }
     }
-    hit.offset = root;
-    hit.position = ray.origin + ray.direction * root;
-    hit.normal = (hit.position - sphere.position) / sphere.radius;
-    hit.face = dot(ray.direction, hit.normal) < 0.0f;
-    if (!hit.face)
+    hit.Offset = root;
+    hit.Position = ray.Origin + ray.Direction * root;
+    hit.Normal = (hit.Position - sphere.Position) / sphere.Radius;
+    hit.Face = dot(ray.Direction, hit.Normal) < 0.0f;
+    if (!hit.Face)
     {
-        hit.normal = -hit.normal;
+        hit.Normal = -hit.Normal;
     }
-    hit.material = sphere.material;
+    hit.Material = sphere.Material;
     return true;
 }
 
-bool get_bounce(
-    const in ray_t ray,
-    const in hit_t hit,
-    const in uvec2 id,
+bool GetBounce(
+    const in Ray ray,
+    const in Hit hit,
+    const in uint2 id,
     const in uint count,
     const in uint depth,
-    out vec3 bounce,
-    out vec3 colour)
+    out float3 bounce,
+    out float3 colour)
 {
-    switch (hit.material.type)
+    switch (hit.Material.Type)
     {
     case LAMBERTIAN:
-        bounce = random(id, count, depth).xyz + hit.normal;
-        bounce = dot(bounce, bounce) < 0.001f ? hit.normal : bounce;
-        colour = hit.material.albedo;
+        bounce = Random(id, count, depth).xyz + hit.Normal;
+        bounce = dot(bounce, bounce) < 0.001f ? hit.Normal : bounce;
+        colour = hit.Material.Albedo;
         return true;
     case METAL:
-        bounce = normalize(reflect(ray.direction, hit.normal));
-        bounce += random(id, count, depth).xyz * hit.material.fuzz;
-        colour = hit.material.albedo;
-        return dot(bounce, hit.normal) > 0.0f;
+        bounce = normalize(reflect(ray.Direction, hit.Normal));
+        bounce += Random(id, count, depth).xyz * hit.Material.Fuzz;
+        colour = hit.Material.Albedo;
+        return dot(bounce, hit.Normal) > 0.0f;
     case DIAELECTRIC:
-        colour = vec3(1.0f);
-        const float m = hit.material.refraction;
+        colour = 1.0f;
+        const float m = hit.Material.Refraction;
         float ri;
-        if (hit.face)
+        if (hit.Face)
         {
             ri = 1.0f / m;
         }
@@ -121,120 +119,125 @@ bool get_bounce(
         {
             ri = m;
         }
-        const vec3 vector = normalize(ray.direction);
-        const float c = min(dot(-vector, hit.normal), 1.0f);
+        const float3 vector = normalize(ray.Direction);
+        const float c = min(dot(-vector, hit.Normal), 1.0f);
         const float s = sqrt(1.0f - pow(c, 2));
         const float r = pow((1.0f - m) / (1.0f + m), 2);
         if (ri * s > 1.0f)
         {
-            bounce = reflect(vector, hit.normal);
+            bounce = reflect(vector, hit.Normal);
             return true;
         }
         const float reflectance = r + (1.0f - r) * pow(1.0f - c, 5);
-        const vec2 size = vec2(WIDTH, HEIGHT);
-        if (reflectance > random(id * size + vec2(depth, count)))
+        const float2 size = float2(WIDTH, HEIGHT);
+        if (reflectance > Random(id * size + float2(depth, count)))
         {
-            bounce = reflect(vector, hit.normal);
+            bounce = reflect(vector, hit.Normal);
         }
         else
         {
-            bounce = refract(vector, hit.normal, ri);
+            bounce = refract(vector, hit.Normal, ri);
         }
         return true;
     }
     return false;
 }
 
-void main()
+[numthreads(THREADS, 1, 1)]
+void main(uint3 globalInvocationID : SV_DispatchThreadID)
 {
-    const uvec2 size = imageSize(image1);
-    const uvec2 id = gl_GlobalInvocationID.xy;
+    uint width;
+    uint height;
+    image1.GetDimensions(width, height);
+    const uint2 size = uint2(width, height);
+    const uint2 id = globalInvocationID.xy;
     if (id.x >= size.x || id.y >= size.y)
     {
         return;
     }
-    const vec3 vector_w = normalize(SOURCE - TARGET);
-    const vec3 vector_u = normalize(cross(UP, vector_w));
-    const vec3 vector_v = cross(vector_w, vector_u);
-    const float viewport_h = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS;
-    const float viewport_w = viewport_h * size.x / size.y;
+    const float3 vectorW = normalize(SOURCE - TARGET);
+    const float3 vectorU = normalize(cross(UP, vectorW));
+    const float3 vectorV = cross(vectorW, vectorU);
+    const float viewportH = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS;
+    const float viewportW = viewportH * size.x / size.y;
     const float oof = FOCUS * tan(radians(OOF / 2.0f));
-    const vec3 viewport_u = viewport_w * vector_u;
-    const vec3 viewport_v = viewport_h * -vector_v;
-    const vec3 pixel_u = viewport_u / size.x;
-    const vec3 pixel_v = viewport_v / size.y;
-    const vec3 pixel_0 = 
+    const float3 viewportU = viewportW * vectorU;
+    const float3 viewportV = viewportH * -vectorV;
+    const float3 pixelU = viewportU / size.x;
+    const float3 pixelV = viewportV / size.y;
+    const float3 pixel0 = 
         SOURCE -
-        FOCUS * vector_w -
-        viewport_u / 2.0f -
-        viewport_v / 2.0f +
-        pixel_u / 2.0f +
-        pixel_v / 2.0f;
-    vec3 colour = vec3(0.0f);
+        FOCUS * vectorW -
+        viewportU / 2.0f -
+        viewportV / 2.0f +
+        pixelU / 2.0f +
+        pixelV / 2.0f;
+    float3 colour = 0.0f;
     const uint samples = SAMPLES / BATCHES;
-    const uint start = batch * samples;
+    const uint start = Batch * samples;
     for (uint count = start; count < start + samples; count++)
     {
-        const vec2 offset = random(id, count, 0).xy - 0.5f;
-        const vec3 target = pixel_0 +
-            (id.x + offset.x) * pixel_u +
-            (id.y + offset.y) * pixel_v;
-        ray_t ray;
+        const float2 offset = Random(id, count, 0).xy - 0.5f;
+        const float3 target = pixel0 +
+            (id.x + offset.x) * pixelU +
+            (id.y + offset.y) * pixelV;
+        Ray ray;
         for (uint i = 0; i < 10; i++)
         {
-            ray.origin.xy = random(id, count, i).xy;
-            if (dot(ray.origin.xy, ray.origin.xy) < 1.0f)
+            ray.Origin.xy = Random(id, count, i).xy;
+            if (dot(ray.Origin.xy, ray.Origin.xy) < 1.0f)
             {
                 break;
             }
         }
-        ray.origin = SOURCE +
-            (ray.origin.x * vector_u * oof) +
-            (ray.origin.y * vector_v * oof);
-        ray.direction = target - ray.origin;
-        vec3 attenuation = vec3(1.0f);
+        ray.Origin = SOURCE +
+            (ray.Origin.x * vectorU * oof) +
+            (ray.Origin.y * vectorV * oof);
+        ray.Direction = target - ray.Origin;
+        float3 attenuation = 1.0f;
         for (uint depth = 0; depth < DEPTH; depth++)
         {
-            hit_t hit;
+            Hit hit;
             float near = 0.001f;
             float far = 1000000.0f;
             bool status = false;
-            for (uint i = 0; i < num_spheres; i++)
+            for (uint i = 0; i < NumSpheres; i++)
             {
-                if (hit_sphere(spheres[i], ray, near, far, hit))
+                if (HitSphere(spheres[i], ray, near, far, hit))
                 {
                     status = true;
-                    far = hit.offset;
+                    far = hit.Offset;
                 }
             }
             if (!status)
             {
-                const float y = normalize(ray.direction).y * 0.5f + 0.5f;
-                const vec3 colour = (1.0f - y) * HORIZON + y * SKY;
+                const float y = normalize(ray.Direction).y * 0.5f + 0.5f;
+                const float3 colour = (1.0f - y) * HORIZON + y * SKY;
                 attenuation *= colour;
                 break;
             }
-            vec3 bounce;
-            vec3 colour;
-            if (!get_bounce(ray, hit, id, count, depth, bounce, colour))
+            float3 bounce;
+            float3 colour;
+            if (!GetBounce(ray, hit, id, count, depth, bounce, colour))
             {
-                attenuation = vec3(0.0f);
+                attenuation = 0.0f;
                 break;
             }
-            ray = ray_t(hit.position, bounce);
+            ray.Origin = hit.Position;
+            ray.Direction = bounce;
             attenuation *= colour;
         }
         colour += attenuation;
     }
-    if (bool(batch))
+    if (bool(Batch))
     {
-        colour += imageLoad(image1, ivec2(id.xy)).xyz;
+        colour += image1[id.xy].xyz;
     }
-    const vec3 curr = sqrt(colour / ((batch + 1) * samples));
-    if (batch == BATCHES - 1)
+    const float3 curr = sqrt(colour / ((Batch + 1) * samples));
+    if (Batch == BATCHES - 1)
     {
         colour = sqrt(colour / SAMPLES);
     }
-    imageStore(image1, ivec2(id.xy), vec4(colour, 1.0f));
-    imageStore(image2, ivec2(id.xy), vec4(curr, 1.0f));
+    image1[id.xy] = float4(colour, 1.0f);
+    image2[id.xy] = float4(curr, 1.0f);
 }
