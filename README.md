@@ -22,10 +22,6 @@ cd bin
 #### Linux
 
 ```bash
-sudo apt install glslc
-```
-
-```bash
 git clone https://github.com/jsoulier/ray_tracing_in_one_weekend --recurse-submodules
 cd ray_tracing_in_one_weekend
 mkdir build
