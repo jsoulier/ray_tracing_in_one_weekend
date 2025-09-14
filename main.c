@@ -239,6 +239,16 @@ int main(
     }
     for (uint32_t batch = 0; batch < BATCHES; batch++)
     {
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            switch (event.type)
+            {
+            case SDL_EVENT_QUIT:
+                batch = BATCHES;
+                break;
+            }
+        }
         SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(device);
         if (!commands)
         {
