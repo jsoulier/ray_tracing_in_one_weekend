@@ -3,15 +3,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "config.h"
 #include "shader.h"
 
-static SDL_GPUBuffer* create_spheres(
-    SDL_GPUDevice* device,
-    uint32_t* size)
+static SDL_GPUBuffer* create_spheres(SDL_GPUDevice* device, uint32_t* size)
 {
     struct
     {
@@ -161,9 +160,7 @@ static SDL_GPUBuffer* create_spheres(
     return sbo;
 }
 
-int main(
-    int argc,
-    char** argv)
+int main(int argc, char** argv)
 {
     SDL_SetLogPriorities(SDL_LOG_PRIORITY_TRACE);
     if (!SDL_Init(SDL_INIT_VIDEO))
@@ -202,8 +199,7 @@ int main(
         return EXIT_FAILURE;
     }
     SDL_GPUTextureCreateInfo tci = {0};
-    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE |
-        SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    tci.usage = SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_WRITE | SDL_GPU_TEXTUREUSAGE_SAMPLER;
     tci.type = SDL_GPU_TEXTURETYPE_2D;
     tci.format = SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT;
     tci.width = WIDTH;
@@ -239,6 +235,10 @@ int main(
     }
     for (uint32_t batch = 0; batch < BATCHES; batch++)
     {
+        char title[128] = {0};
+        int samples = batch * SAMPLES / BATCHES;
+        snprintf(title, sizeof(title), "%d/%d samples", samples, SAMPLES);
+        SDL_SetWindowTitle(window, title);
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -352,7 +352,7 @@ int main(
         SDL_Log("Failed to create surface: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_SaveBMP(surface, IMAGE);
+    SDL_SavePNG(surface, IMAGE);
     SDL_DestroySurface(surface);
     SDL_UnmapGPUTransferBuffer(device, tbo);
     SDL_ReleaseGPUTransferBuffer(device, tbo);
