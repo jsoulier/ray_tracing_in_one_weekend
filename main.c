@@ -162,7 +162,13 @@ static SDL_GPUBuffer* create_spheres(SDL_GPUDevice* device, uint32_t* size)
 
 int main(int argc, char** argv)
 {
-    SDL_SetLogPriorities(SDL_LOG_PRIORITY_TRACE);
+#ifndef NDEBUG
+    bool debug = true;
+#else
+    bool debug = false;
+#endif
+    SDL_SetAppMetadata("RTIOW", NULL, NULL);
+    SDL_SetLogPriorities(SDL_LOG_PRIORITY_VERBOSE);
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
@@ -174,13 +180,7 @@ int main(int argc, char** argv)
         SDL_Log("Failed to create window: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-#if SDL_PLATFORM_WIN32
-    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL, true, NULL);
-#elif SDL_PLATFORM_LINUX
-    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
-#elif SDL_PLATFORM_APPLE
-    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, true, NULL);
-#endif
+    SDL_GPUDevice* device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL | SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_MSL, debug, NULL);
     if (!device)
     {
         SDL_Log("Failed to create device: %s", SDL_GetError());
@@ -191,7 +191,7 @@ int main(int argc, char** argv)
         SDL_Log("Failed to create swapchain: %s", SDL_GetError());
         return EXIT_FAILURE;
     }
-    SDL_SetWindowAlwaysOnTop(window, true);
+    SDL_RaiseWindow(window);
     SDL_GPUComputePipeline* pipeline = load_compute_pipeline(device, "shader.comp");
     if (!pipeline)
     {
@@ -237,7 +237,7 @@ int main(int argc, char** argv)
     {
         char title[128] = {0};
         int samples = batch * SAMPLES / BATCHES;
-        snprintf(title, sizeof(title), "%d/%d samples", samples, SAMPLES);
+        snprintf(title, sizeof(title), "%s: %d/%d samples", SDL_GetGPUDeviceDriver(device), samples, SAMPLES);
         SDL_SetWindowTitle(window, title);
         SDL_Event event;
         while (SDL_PollEvent(&event))

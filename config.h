@@ -14,7 +14,7 @@
 #define UP float3(0.0f, 1.0f, 0.0f)
 #define FOCUS 10.0f
 #define OOF 0.6f
-#define IMAGE "image.bmp"
+#define IMAGE "image.png"
 #define SKY float3(0.5f, 0.7f, 1.0f)
 #define HORIZON float3(1.0f, 1.0f, 1.0f)
 #define LAMBERTIAN 0
