@@ -8,9 +8,7 @@
 #include "jsmn.h"
 #include "shader.h"
 
-SDL_GPUShader* load_shader(
-    SDL_GPUDevice* device,
-    const char* name)
+SDL_GPUShader* load_shader(SDL_GPUDevice* device, const char* name)
 {
     SDL_GPUShaderFormat format = SDL_GetGPUShaderFormats(device);
     const char* entrypoint;
@@ -120,9 +118,7 @@ SDL_GPUShader* load_shader(
     return shader;
 }
 
-SDL_GPUComputePipeline* load_compute_pipeline(
-    SDL_GPUDevice* device,
-    const char* name)
+SDL_GPUComputePipeline* load_compute_pipeline(SDL_GPUDevice* device, const char* name)
 {
     SDL_GPUShaderFormat format = SDL_GetGPUShaderFormats(device);
     const char* entrypoint;

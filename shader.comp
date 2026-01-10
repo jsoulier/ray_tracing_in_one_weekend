@@ -93,22 +93,22 @@ bool GetBounce(
     const in uint count,
     const in uint depth,
     out float3 bounce,
-    out float3 colour)
+    out float3 color)
 {
     switch (hit.Material.Type)
     {
     case LAMBERTIAN:
         bounce = Random(id, count, depth).xyz + hit.Normal;
         bounce = dot(bounce, bounce) < 0.001f ? hit.Normal : bounce;
-        colour = hit.Material.Albedo;
+        color = hit.Material.Albedo;
         return true;
     case METAL:
         bounce = normalize(reflect(ray.Direction, hit.Normal));
         bounce += Random(id, count, depth).xyz * hit.Material.Fuzz;
-        colour = hit.Material.Albedo;
+        color = hit.Material.Albedo;
         return dot(bounce, hit.Normal) > 0.0f;
     case DIAELECTRIC:
-        colour = 1.0f;
+        color = 1.0f;
         const float m = hit.Material.Refraction;
         float ri;
         if (hit.Face)
@@ -172,7 +172,7 @@ void main(uint3 globalInvocationID : SV_DispatchThreadID)
         viewportV / 2.0f +
         pixelU / 2.0f +
         pixelV / 2.0f;
-    float3 colour = 0.0f;
+    float3 color = 0.0f;
     const uint samples = SAMPLES / BATCHES;
     const uint start = Batch * samples;
     for (uint count = start; count < start + samples; count++)
@@ -212,32 +212,32 @@ void main(uint3 globalInvocationID : SV_DispatchThreadID)
             if (!status)
             {
                 const float y = normalize(ray.Direction).y * 0.5f + 0.5f;
-                const float3 colour = (1.0f - y) * HORIZON + y * SKY;
-                attenuation *= colour;
+                const float3 color = (1.0f - y) * HORIZON + y * SKY;
+                attenuation *= color;
                 break;
             }
             float3 bounce;
-            float3 colour;
-            if (!GetBounce(ray, hit, id, count, depth, bounce, colour))
+            float3 color;
+            if (!GetBounce(ray, hit, id, count, depth, bounce, color))
             {
                 attenuation = 0.0f;
                 break;
             }
             ray.Origin = hit.Position;
             ray.Direction = bounce;
-            attenuation *= colour;
+            attenuation *= color;
         }
-        colour += attenuation;
+        color += attenuation;
     }
     if (bool(Batch))
     {
-        colour += image1[id.xy].xyz;
+        color += image1[id.xy].xyz;
     }
-    const float3 curr = sqrt(colour / ((Batch + 1) * samples));
+    const float3 current = sqrt(color / ((Batch + 1) * samples));
     if (Batch == BATCHES - 1)
     {
-        colour = sqrt(colour / SAMPLES);
+        color = sqrt(color / SAMPLES);
     }
-    image1[id.xy] = float4(colour, 1.0f);
-    image2[id.xy] = float4(curr, 1.0f);
+    image1[id.xy] = float4(color, 1.0f);
+    image2[id.xy] = float4(current, 1.0f);
 }
