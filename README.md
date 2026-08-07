@@ -1,6 +1,6 @@
 # Ray Tracing In One Weekend
 
-![](image.bmp)
+![](image.png)
 
 Implementation of [Ray Tracing in One Weekend](https://raytracing.github.io/) using the new SDL3 GPU API with a compute shader
 

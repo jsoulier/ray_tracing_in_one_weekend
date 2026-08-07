@@ -1,5 +1,8 @@
-#include "config.h"
-#include "random.hlsl"
+#define THREADS 256
+#define LAMBERTIAN 0
+#define METAL 1
+#define DIAELECTRIC 2
+#define TAU 6.2831853f
 
 struct Ray
 {
@@ -7,14 +10,15 @@ struct Ray
     float3 Direction;
 };
 
-struct Material
+struct Sphere
 {
+    float3 Position;
+    float Radius;
     float3 Albedo;
-    uint Padding1;
-    uint Type;
     float Fuzz;
     float Refraction;
-    uint Padding2;
+    uint Type;
+    uint2 Padding;
 };
 
 struct Hit
@@ -23,38 +27,49 @@ struct Hit
     float3 Position;
     float3 Normal;
     bool Face;
-    Material Material;
-};
-
-struct Sphere
-{
-    float3 Position;
-    float Radius;
-    Material Material;
+    Sphere Object;
 };
 
 cbuffer UniformBuffer : register(b0, space2)
 {
+    float3 Source;
+    float Fov;
+    float3 Target;
+    float Focus;
+    float3 Up;
+    float Oof;
+    float3 Sky;
+    uint Width;
+    float3 Horizon;
+    uint Height;
+    uint Sample;
+    uint Depth;
     uint NumSpheres;
-};
-
-cbuffer UniformBuffer : register(b1, space2)
-{
-    uint Batch;
 };
 
 StructuredBuffer<Sphere> spheres : register(t0, space0);
 [[vk::image_format("rgba32f")]]
-RWTexture2D<float4> image1 : register(u0, space1);
-[[vk::image_format("rgba32f")]]
-RWTexture2D<float4> image2 : register(u1, space1);
+RWTexture2D<float4> image : register(u0, space1);
 
-bool HitSphere(
-    const in Sphere sphere,
-    const in Ray ray,
-    const in float near,
-    const in float far,
-    out Hit hit)
+static uint seed;
+
+// https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
+float Random()
+{
+    seed = seed * 747796405u + 2891336453u;
+    const uint x = ((seed >> ((seed >> 28u) + 4u)) ^ seed) * 277803737u;
+    return float((x >> 22u) ^ x) / 4294967296.0f;
+}
+
+float3 RandomDirection()
+{
+    const float z = Random() * 2.0f - 1.0f;
+    const float a = Random() * TAU;
+    const float r = sqrt(1.0f - z * z);
+    return float3(r * cos(a), r * sin(a), z);
+}
+
+bool HitSphere(const in Sphere sphere, const in Ray ray, const in float near, const in float far, out Hit hit)
 {
     const float3 offset = sphere.Position - ray.Origin;
     const float a = dot(ray.Direction, ray.Direction);
@@ -82,61 +97,45 @@ bool HitSphere(
     {
         hit.Normal = -hit.Normal;
     }
-    hit.Material = sphere.Material;
+    hit.Object = sphere;
     return true;
 }
 
-bool GetBounce(
-    const in Ray ray,
-    const in Hit hit,
-    const in uint2 id,
-    const in uint count,
-    const in uint depth,
-    out float3 bounce,
-    out float3 color)
+bool GetBounce(const in Ray ray, const in Hit hit, out float3 bounce, out float3 color)
 {
-    switch (hit.Material.Type)
+    color = hit.Object.Albedo;
+    switch (hit.Object.Type)
     {
     case LAMBERTIAN:
-        bounce = Random(id, count, depth).xyz + hit.Normal;
-        bounce = dot(bounce, bounce) < 0.001f ? hit.Normal : bounce;
-        color = hit.Material.Albedo;
+        bounce = hit.Normal + RandomDirection();
+        if (dot(bounce, bounce) < 0.001f)
+        {
+            bounce = hit.Normal;
+        }
         return true;
     case METAL:
         bounce = normalize(reflect(ray.Direction, hit.Normal));
-        bounce += Random(id, count, depth).xyz * hit.Material.Fuzz;
-        color = hit.Material.Albedo;
+        bounce += RandomDirection() * hit.Object.Fuzz;
         return dot(bounce, hit.Normal) > 0.0f;
     case DIAELECTRIC:
         color = 1.0f;
-        const float m = hit.Material.Refraction;
-        float ri;
+        const float m = hit.Object.Refraction;
+        float ri = m;
         if (hit.Face)
         {
             ri = 1.0f / m;
         }
-        else
-        {
-            ri = m;
-        }
-        const float3 vector = normalize(ray.Direction);
-        const float c = min(dot(-vector, hit.Normal), 1.0f);
-        const float s = sqrt(1.0f - pow(c, 2));
+        const float3 direction = normalize(ray.Direction);
+        const float c = min(dot(-direction, hit.Normal), 1.0f);
         const float r = pow((1.0f - m) / (1.0f + m), 2);
-        if (ri * s > 1.0f)
-        {
-            bounce = reflect(vector, hit.Normal);
-            return true;
-        }
         const float reflectance = r + (1.0f - r) * pow(1.0f - c, 5);
-        const float2 size = float2(WIDTH, HEIGHT);
-        if (reflectance > Random(id * size + float2(depth, count)))
+        if (ri * sqrt(1.0f - c * c) > 1.0f || reflectance > Random())
         {
-            bounce = reflect(vector, hit.Normal);
+            bounce = reflect(direction, hit.Normal);
         }
         else
         {
-            bounce = refract(vector, hit.Normal, ri);
+            bounce = refract(direction, hit.Normal, ri);
         }
         return true;
     }
@@ -144,100 +143,66 @@ bool GetBounce(
 }
 
 [numthreads(THREADS, 1, 1)]
-void main(uint3 globalInvocationID : SV_DispatchThreadID)
+void main(uint3 id : SV_DispatchThreadID)
 {
-    uint width;
-    uint height;
-    image1.GetDimensions(width, height);
-    const uint2 size = uint2(width, height);
-    const uint2 id = globalInvocationID.xy;
-    if (id.x >= size.x || id.y >= size.y)
+    if (id.x >= Width || id.y >= Height)
     {
         return;
     }
-    const float3 vectorW = normalize(SOURCE - TARGET);
-    const float3 vectorU = normalize(cross(UP, vectorW));
+    seed = id.x + id.y * Width + Sample * Width * Height + 1u;
+    const float3 vectorW = normalize(Source - Target);
+    const float3 vectorU = normalize(cross(Up, vectorW));
     const float3 vectorV = cross(vectorW, vectorU);
-    const float viewportH = 2.0f * tan(radians(FOV / 2.0f)) * FOCUS;
-    const float viewportW = viewportH * size.x / size.y;
-    const float oof = FOCUS * tan(radians(OOF / 2.0f));
+    const float viewportH = 2.0f * tan(radians(Fov / 2.0f)) * Focus;
+    const float viewportW = viewportH * Width / Height;
+    const float defocus = Focus * tan(radians(Oof / 2.0f));
     const float3 viewportU = viewportW * vectorU;
     const float3 viewportV = viewportH * -vectorV;
-    const float3 pixelU = viewportU / size.x;
-    const float3 pixelV = viewportV / size.y;
-    const float3 pixel0 = 
-        SOURCE -
-        FOCUS * vectorW -
-        viewportU / 2.0f -
-        viewportV / 2.0f +
-        pixelU / 2.0f +
-        pixelV / 2.0f;
-    float3 color = 0.0f;
-    const uint samples = SAMPLES / BATCHES;
-    const uint start = Batch * samples;
-    for (uint count = start; count < start + samples; count++)
+    const float3 pixelU = viewportU / Width;
+    const float3 pixelV = viewportV / Height;
+    const float3 pixel0 = Source - Focus * vectorW - viewportU / 2.0f - viewportV / 2.0f + pixelU / 2.0f + pixelV / 2.0f;
+    const float2 jitter = float2(Random(), Random()) - 0.5f;
+    const float3 target = pixel0 + (id.x + jitter.x) * pixelU + (id.y + jitter.y) * pixelV;
+    const float angle = Random() * TAU;
+    const float radius = sqrt(Random()) * defocus;
+    Ray ray;
+    ray.Origin = Source + cos(angle) * radius * vectorU + sin(angle) * radius * vectorV;
+    ray.Direction = target - ray.Origin;
+    float3 color = 1.0f;
+    for (uint depth = 0; depth < Depth; depth++)
     {
-        const float2 offset = Random(id, count, 0).xy - 0.5f;
-        const float3 target = pixel0 +
-            (id.x + offset.x) * pixelU +
-            (id.y + offset.y) * pixelV;
-        Ray ray;
-        for (uint i = 0; i < 10; i++)
+        Hit hit;
+        float far = 1000000.0f;
+        bool status = false;
+        for (uint i = 0; i < NumSpheres; i++)
         {
-            ray.Origin.xy = Random(id, count, i).xy;
-            if (dot(ray.Origin.xy, ray.Origin.xy) < 1.0f)
+            if (HitSphere(spheres[i], ray, 0.001f, far, hit))
             {
-                break;
+                status = true;
+                far = hit.Offset;
             }
         }
-        ray.Origin = SOURCE +
-            (ray.Origin.x * vectorU * oof) +
-            (ray.Origin.y * vectorV * oof);
-        ray.Direction = target - ray.Origin;
-        float3 attenuation = 1.0f;
-        for (uint depth = 0; depth < DEPTH; depth++)
+        if (!status)
         {
-            Hit hit;
-            float near = 0.001f;
-            float far = 1000000.0f;
-            bool status = false;
-            for (uint i = 0; i < NumSpheres; i++)
-            {
-                if (HitSphere(spheres[i], ray, near, far, hit))
-                {
-                    status = true;
-                    far = hit.Offset;
-                }
-            }
-            if (!status)
-            {
-                const float y = normalize(ray.Direction).y * 0.5f + 0.5f;
-                const float3 color = (1.0f - y) * HORIZON + y * SKY;
-                attenuation *= color;
-                break;
-            }
-            float3 bounce;
-            float3 color;
-            if (!GetBounce(ray, hit, id, count, depth, bounce, color))
-            {
-                attenuation = 0.0f;
-                break;
-            }
-            ray.Origin = hit.Position;
-            ray.Direction = bounce;
-            attenuation *= color;
+            const float y = normalize(ray.Direction).y * 0.5f + 0.5f;
+            color *= (1.0f - y) * Horizon + y * Sky;
+            break;
         }
-        color += attenuation;
+        float3 bounce;
+        float3 albedo;
+        if (!GetBounce(ray, hit, bounce, albedo))
+        {
+            color = 0.0f;
+            break;
+        }
+        ray.Origin = hit.Position;
+        ray.Direction = bounce;
+        color *= albedo;
     }
-    if (bool(Batch))
+    float3 previous = 0.0f;
+    if (Sample > 0)
     {
-        color += image1[id.xy].xyz;
+        previous = image[id.xy].rgb * image[id.xy].rgb;
     }
-    const float3 current = sqrt(color / ((Batch + 1) * samples));
-    if (Batch == BATCHES - 1)
-    {
-        color = sqrt(color / SAMPLES);
-    }
-    image1[id.xy] = float4(color, 1.0f);
-    image2[id.xy] = float4(current, 1.0f);
+    image[id.xy] = float4(sqrt((previous * Sample + color) / (Sample + 1)), 1.0f);
 }

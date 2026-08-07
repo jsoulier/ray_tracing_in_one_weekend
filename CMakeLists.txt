@@ -9,69 +9,22 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${BINARY_DIR})
 make_directory(${BINARY_DIR})
-configure_file(LICENSE.txt ${BINARY_DIR} COPYONLY)
-configure_file(README.md ${BINARY_DIR} COPYONLY)
 
 add_subdirectory(SDL)
-add_executable(rtiow WIN32 main.c shader.c)
+add_executable(rtiow WIN32 main.c)
 set_target_properties(rtiow PROPERTIES C_STANDARD 11)
 target_link_libraries(rtiow PUBLIC SDL3::SDL3)
 
 find_program(SHADERCROSS shadercross)
-function(add_shader FILE)
-    set(DEPENDS ${ARGN})
-    set(HLSL ${CMAKE_SOURCE_DIR}/${FILE})
-    set(SPV ${CMAKE_SOURCE_DIR}/bin/${FILE}.spv)
-    set(DXIL ${CMAKE_SOURCE_DIR}/bin/${FILE}.dxil)
-    set(MSL ${CMAKE_SOURCE_DIR}/bin/${FILE}.msl)
-    set(JSON ${CMAKE_SOURCE_DIR}/bin/${FILE}.json)
-    function(compile OUTPUT)
+foreach(FORMAT dxil msl spv)
+    if(SHADERCROSS)
         add_custom_command(
-            OUTPUT ${OUTPUT}
-            COMMAND ${SHADERCROSS} ${HLSL} -s hlsl -o ${OUTPUT} -I src
+            TARGET rtiow POST_BUILD
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            DEPENDS ${HLSL} ${DEPENDS}
-            COMMENT ${OUTPUT}
-        )
-        get_filename_component(NAME ${OUTPUT} NAME)
-        string(REPLACE . _ NAME ${NAME})
-        set(NAME compile_${NAME})
-        add_custom_target(${NAME} DEPENDS ${OUTPUT})
-        add_dependencies(rtiow ${NAME})
-    endfunction()
-    if(EXISTS ${SHADERCROSS})
-        compile(${SPV})
-        compile(${DXIL})
-        compile(${MSL})
-        compile(${JSON})
-    else()
-        message("Using prebuilts since SDL_shadercross is missing")
+            COMMAND ${SHADERCROSS} shader.comp -s hlsl -o bin/shader.comp.${FORMAT})
     endif()
-    function(package OUTPUT)
-        get_filename_component(NAME ${OUTPUT} NAME)
-        set(BINARY ${BINARY_DIR}/${NAME})
-        add_custom_command(
-            OUTPUT ${BINARY}
-            COMMAND ${CMAKE_COMMAND} -E copy ${OUTPUT} ${BINARY}
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            DEPENDS ${OUTPUT}
-            COMMENT ${BINARY}
-        )
-        string(REPLACE . _ NAME ${NAME})
-        add_custom_target(package_${NAME} DEPENDS ${BINARY})
-        add_dependencies(rtiow package_${NAME})
-        if(TARGET compile_${NAME})
-            add_dependencies(package_${NAME} compile_${NAME})
-        endif()
-    endfunction()
-    if(APPLE)
-        package(${MSL})
-    else()
-        package(${SPV})
-    endif()
-    if(WIN32)
-        package(${DXIL})
-    endif()
-    package(${JSON})
-endfunction()
-add_shader(shader.comp random.hlsl config.h)
+    add_custom_command(
+        TARGET rtiow POST_BUILD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy bin/shader.comp.${FORMAT} ${BINARY_DIR})
+endforeach()
